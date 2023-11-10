@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .module import *
+from evidential import models
 
 class IntraViewAAModule(nn.Module):
     def __init__(self):
@@ -267,7 +268,8 @@ class AARMVSNet(nn.Module):
                 
             prob_volume = torch.stack(cost_reg_list, dim=1).squeeze(2)
 
-            #TODO Hier statt Softmax 4-Head
+            #TODO Hier neben Softmax 4-Head
+            four_head = models.four_head(prob_volume)
             prob_volume = F.softmax(prob_volume,dim=1)  # get prob volume use for recurrent to decrease memory consumption
 
             return {'prob_volume': prob_volume}

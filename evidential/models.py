@@ -71,3 +71,7 @@ def loss_gaussian(y, y_pred, coeff):
     error = gamma - y_pred
 
     return torch.mean(torch.log(var) + error**2 / var)
+
+
+def four_head(prob_volume):
+    return None
