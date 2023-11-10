@@ -212,6 +212,8 @@ def train_sample(sample, detailed_summary=False):
     optimizer.zero_grad()
 
     sample_cuda = tocuda(sample)
+
+    #TODO Hier loss ändern
     depth_gt = sample_cuda["depth"]
     mask = sample_cuda["mask"]
     depth_interval = sample_cuda["depth_interval"]

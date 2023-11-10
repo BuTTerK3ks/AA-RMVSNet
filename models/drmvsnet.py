@@ -266,6 +266,8 @@ class AARMVSNet(nn.Module):
                 cost_reg_list.append(cost_reg)
                 
             prob_volume = torch.stack(cost_reg_list, dim=1).squeeze(2)
+
+            #TODO Hier statt Softmax 4-Head
             prob_volume = F.softmax(prob_volume,dim=1)  # get prob volume use for recurrent to decrease memory consumption
 
             return {'prob_volume': prob_volume}
