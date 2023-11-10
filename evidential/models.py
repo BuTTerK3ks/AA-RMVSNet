@@ -4,6 +4,13 @@ import torch
 import torch.nn as nn
 
 
+def deformconvgnrelu(in_channels, out_channels, kernel_size=3, stride=1,dilation=1, bias=True, group_channel=8):
+    return nn.Sequential(
+        DeformConv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride,  bias=bias),
+        nn.GroupNorm(int(max(1, out_channels / group_channel)), out_channels),
+        nn.ReLU(inplace=True)
+    )
+
 class IntraViewAAModule(nn.Module):
     def __init__(self):
         super(IntraViewAAModule, self).__init__()
