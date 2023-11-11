@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .module import *
-from evidential.models import DERLayer
+from evidential import models
 
 class IntraViewAAModule(nn.Module):
     def __init__(self):
@@ -232,7 +232,8 @@ class AARMVSNet(nn.Module):
 
         self.return_depth = return_depth
 
-        self.evidential = DERLayer
+        #TODO make dynamic
+        self.evidential = models.EvidentialModule(in_channels=100, n_hidden=128)
 
     def forward(self, imgs, proj_matrices, depth_values):
         imgs = torch.unbind(imgs, 1)
@@ -271,7 +272,7 @@ class AARMVSNet(nn.Module):
             prob_volume = torch.stack(cost_reg_list, dim=1).squeeze(2)
 
             #TODO Hier neben Softmax den Evidential 4-Head einfügen
-            four_head = self.evidential(prob_volume)
+            evidential_parameters = self.evidential(prob_volume)
 
 
             prob_volume = F.softmax(prob_volume,dim=1)  # get prob volume use for recurrent to decrease memory consumption

@@ -8,7 +8,7 @@ class Model(nn.Module):
     def __init__(self, n_output, n_hidden=64):
         super().__init__()
         self.model = nn.Sequential(
-            nn.Linear(1, n_hidden),
+            nn.Linear(100, n_hidden),
             nn.ReLU(),
             nn.Linear(n_hidden, n_hidden),
             nn.ReLU(),
