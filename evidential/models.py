@@ -1,34 +1,38 @@
-import math
 import torch
+import math
 import torch.nn as nn
-
-
-class DERLayer(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        gamma = x[:, 0]
-        nu = nn.functional.softplus(x[:, 1])
-        alpha = nn.functional.softplus(x[:, 2]) + 1.0
-        beta = nn.functional.softplus(x[:, 3])
-        return torch.stack((gamma, nu, alpha, beta), dim=1)
+import torch.optim as optim
+import torch.nn.functional as F
 
 
 class EvidentialModule(nn.Module):
-    def __init__(self, in_channels=3, n_hidden=128, bias=True):
+    def __init__(self):
         super(EvidentialModule, self).__init__()
-        self.evidential_model = nn.Sequential(
-            nn.Linear(in_channels, n_hidden),
-            nn.ReLU(),
-            nn.Linear(n_hidden, int(n_hidden/2)),
-            nn.ReLU(),
-            nn.Linear(int(n_hidden/2), 4),
-            DERLayer()
-        )
-        self.der_layer = DERLayer()
+
+        # gamma, nu, alpha, beta
+        self.convolution = nn.Conv2d(100, 4, kernel_size=3, stride=1, padding=1)
 
     def forward(self, x):
-        #return self.model(x)
-        test = nn.Sequential(self.evidential_model, self.der_layer)
-        return test(x)
+        x = self.convolution(x)
+
+        y = torch.zeros_like(x)
+        y[:, 0, :, :] = x[:, 0, :, :]
+        y[:, 1:4, :, :] = F.softplus(x[:, 1:4, :, :])
+        # Add +1 to alpha channel
+        x = y
+        x[:, 1, :, :] = torch.add(y[:, 1, :, :], 1)
+
+        return x
+
+
+def loss_der(prob_volume, depth_gt, mask, depth_value, coeff=0.01):
+
+
+    gamma, nu, alpha, beta = prediction[:, 0, :, :], prediction[:, 1, :, :], prediction[:, 2, :, :], prediction[:, 3, :, :]
+    error = gamma - ground_truth
+    omega = 2.0 * beta * (1.0 + nu)
+
+    calculated_loss = 0.5 * torch.log(math.pi / nu) - alpha * torch.log(omega) + (alpha + 0.5) * torch.log(error ** 2 * nu + omega) + torch.lgamma(alpha) - torch.lgamma(alpha + 0.5) + coeff * torch.abs(error) * (2.0 * nu + alpha)
+    calculated_loss = torch.mean(calculated_loss)
+
+    return calculated_loss

@@ -17,6 +17,8 @@ import datetime
 import ast
 from datasets.data_io import *
 
+from evidential.models import loss_der
+
 cudnn.benchmark = True
 
 parser = argparse.ArgumentParser(description='PyTorch Codebase for AA-RMVSNet')
@@ -116,6 +118,8 @@ model = nn.parallel.DataParallel(model)
 
 print('loss: Cross Entropy')
 model_loss = mvsnet_cls_loss
+print('loss: Evidential')
+model_loss = loss_der
 
 print('optimizer: Adam \n')
 optimizer = optim.Adam(model.parameters(), lr=args.lr)

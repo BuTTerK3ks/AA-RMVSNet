@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .module import *
-from evidential import models
+from evidential.models import EvidentialModule, loss_der
 
 class IntraViewAAModule(nn.Module):
     def __init__(self):
@@ -233,7 +233,7 @@ class AARMVSNet(nn.Module):
         self.return_depth = return_depth
 
         #TODO make dynamic
-        self.evidential = models.EvidentialModule(in_channels=100, n_hidden=128)
+        self.evidential = EvidentialModule()
 
     def forward(self, imgs, proj_matrices, depth_values):
         imgs = torch.unbind(imgs, 1)
