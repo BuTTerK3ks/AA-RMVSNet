@@ -33,7 +33,7 @@ def loss_der(prediction, depth_gt, mask, depth_value, coeff=0.01):
     omega = 2.0 * beta * (1.0 + nu)
 
     calculated_loss = 0.5 * torch.log(math.pi / nu) - alpha * torch.log(omega) + (alpha + 0.5) * torch.log(error ** 2 * nu + omega) + torch.lgamma(alpha) - torch.lgamma(alpha + 0.5) + coeff * torch.abs(error) * (2.0 * nu + alpha)
-    calculated_loss = torch.mean(calculated_loss)
+    calculated_loss = torch.mean(calculated_loss, dim=1)
 
     # TODO check if right
     return calculated_loss, gamma

@@ -272,12 +272,11 @@ class AARMVSNet(nn.Module):
             prob_volume = torch.stack(cost_reg_list, dim=1).squeeze(2)
 
             #TODO Hier neben Softmax den Evidential 4-Head einfügen
-            evidential_parameters = self.evidential(prob_volume)
-
+            prediction = self.evidential(prob_volume)
 
             #prob_volume = F.softmax(prob_volume,dim=1)  # get prob volume use for recurrent to decrease memory consumption
 
-            return {'prediction': prob_volume}
+            return {'prediction': prediction}
             
         else: #Test phase
             shape = ref_feature.shape
