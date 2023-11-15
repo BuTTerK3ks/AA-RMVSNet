@@ -275,9 +275,9 @@ class AARMVSNet(nn.Module):
             evidential_parameters = self.evidential(prob_volume)
 
 
-            prob_volume = F.softmax(prob_volume,dim=1)  # get prob volume use for recurrent to decrease memory consumption
+            #prob_volume = F.softmax(prob_volume,dim=1)  # get prob volume use for recurrent to decrease memory consumption
 
-            return {'prob_volume': prob_volume}
+            return {'prediction': prob_volume}
             
         else: #Test phase
             shape = ref_feature.shape

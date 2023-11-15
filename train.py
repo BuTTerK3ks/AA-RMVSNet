@@ -62,6 +62,7 @@ parser.add_argument('--summary_freq', type=int, default=20, help='print and summ
 parser.add_argument('--save_freq', type=int, default=1, help='save checkpoint frequency')
 parser.add_argument('--seed', type=int, default=1, metavar='S', help='random seed')
 
+parser.add_argument('--evidential', type=bool, default=False, help='use evidential learning')
 
 # parse arguments and check
 args = parser.parse_args()
@@ -116,10 +117,13 @@ model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max
 model = model.cuda()
 model = nn.parallel.DataParallel(model)
 
-print('loss: Cross Entropy')
-model_loss = mvsnet_cls_loss
-print('loss: Evidential')
-model_loss = loss_der
+
+if args.evidential:
+    print('loss: Evidential')
+    model_loss = loss_der
+else:
+    print('loss: Cross Entropy')
+    model_loss = mvsnet_cls_loss
 
 print('optimizer: Adam \n')
 optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -224,8 +228,9 @@ def train_sample(sample, detailed_summary=False):
     depth_value = sample_cuda["depth_values"]
     outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
 
-    prob_volume = outputs['prob_volume']
-    loss, depth_est = model_loss(prob_volume, depth_gt, mask, depth_value)
+    prediction = outputs['prediction']
+    #TODO make depth est right
+    loss, depth_est = model_loss(prediction, depth_gt, mask, depth_value)
 
     loss.backward()
     optimizer.step()

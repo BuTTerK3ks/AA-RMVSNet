@@ -25,14 +25,15 @@ class EvidentialModule(nn.Module):
         return x
 
 
-def loss_der(prob_volume, depth_gt, mask, depth_value, coeff=0.01):
+def loss_der(prediction, depth_gt, mask, depth_value, coeff=0.01):
 
 
     gamma, nu, alpha, beta = prediction[:, 0, :, :], prediction[:, 1, :, :], prediction[:, 2, :, :], prediction[:, 3, :, :]
-    error = gamma - ground_truth
+    error = gamma - depth_gt
     omega = 2.0 * beta * (1.0 + nu)
 
     calculated_loss = 0.5 * torch.log(math.pi / nu) - alpha * torch.log(omega) + (alpha + 0.5) * torch.log(error ** 2 * nu + omega) + torch.lgamma(alpha) - torch.lgamma(alpha + 0.5) + coeff * torch.abs(error) * (2.0 * nu + alpha)
     calculated_loss = torch.mean(calculated_loss)
 
-    return calculated_loss
+    # TODO check if right
+    return calculated_loss, gamma
