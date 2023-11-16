@@ -23,12 +23,14 @@ def image_with_bar(array, type):
     plt.show()
 
 
-def ae(aleatoric, epistemic):
+def evidential(ed):
 
-    # Convert the PyTorch tensor to a NumPy array
+    aleatoric = ed["aleatoric"]
     aleatoric = aleatoric.detach().cpu().clone().numpy()
-
-    # Reshape the array if needed (remove the singleton dimension)
     aleatoric = aleatoric.squeeze()
-
     image_with_bar(aleatoric, "aleatoric")
+
+    epistemic = ed["epistemic"]
+    epistemic = epistemic.detach().cpu().clone().numpy()
+    epistemic = epistemic.squeeze()
+    image_with_bar(epistemic, "epistemic")

@@ -9,6 +9,7 @@ lr=0.001
 inverse_depth=False
 image_scale=0.25
 view_num=5
+evidential=True
 
 CUDA_VISIBLE_DEVICES=0 python train.py  \
         --dataset=dtu_yao \
@@ -24,4 +25,5 @@ CUDA_VISIBLE_DEVICES=0 python train.py  \
         --testlist=lists/dtu/test.txt \
         --numdepth=$d \
         --interval_scale=$interval_scale \
-        --logdir=./checkpoints/$data
+        --logdir=./checkpoints/$data \
+        --evidential=evidential

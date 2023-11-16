@@ -172,10 +172,13 @@ def train():
             start_time = time.time()
             global_step = len(TrainImgLoader) * epoch_idx + batch_idx
             do_summary = global_step % args.summary_freq == 0
-            loss, scalar_outputs, image_outputs = train_sample(sample, detailed_summary=do_summary)
-            
+            loss, scalar_outputs, image_outputs, evidential_outputs = train_sample(sample, detailed_summary=do_summary)
+
             for param_group in optimizer.param_groups:
                 lr = param_group['lr']
+
+            #if args.evidential:
+                #plot.evidential(evidential_outputs)
             
             if do_summary:
                 save_scalars(logger, 'train', scalar_outputs, global_step)
@@ -236,9 +239,11 @@ def train_sample(sample, detailed_summary=False):
     #TODO make depth est right
     if args.evidential:
         loss, depth_est, aleatoric, epistemic = model_loss(prediction, depth_gt, mask, depth_value)
-        plot.ae(aleatoric=aleatoric, epistemic=epistemic)
+        evidential_outputs = {"aleatoric": aleatoric,
+                              "epistemic": epistemic}
     else:
         loss, depth_est = model_loss(prediction, depth_gt, mask, depth_value)
+        evidential_outputs = {}
 
     loss.backward()
     optimizer.step()
@@ -253,7 +258,7 @@ def train_sample(sample, detailed_summary=False):
         scalar_outputs["thres4mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 4)
         scalar_outputs["thres8mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 8)
 
-    return tensor2float(loss), tensor2float(scalar_outputs), image_outputs
+    return tensor2float(loss), tensor2float(scalar_outputs), image_outputs, evidential_outputs
 
 
 @make_nograd_func
