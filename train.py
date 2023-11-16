@@ -18,6 +18,7 @@ import ast
 from datasets.data_io import *
 
 from evidential.models import loss_der
+from evidential import plot
 
 cudnn.benchmark = True
 
@@ -114,7 +115,7 @@ TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_wor
 
 print('model: AA-RMVSNet')
 if args.evidential:
-    model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w,use_evidential=True)
+    model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w, use_evidential=True)
 else:
     model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w)
 model = model.cuda()
@@ -233,7 +234,11 @@ def train_sample(sample, detailed_summary=False):
 
     prediction = outputs['prediction']
     #TODO make depth est right
-    loss, depth_est = model_loss(prediction, depth_gt, mask, depth_value)
+    if args.evidential:
+        loss, depth_est, aleatoric, epistemic = model_loss(prediction, depth_gt, mask, depth_value)
+        plot.ae(aleatoric=aleatoric, epistemic=epistemic)
+    else:
+        loss, depth_est = model_loss(prediction, depth_gt, mask, depth_value)
 
     loss.backward()
     optimizer.step()
