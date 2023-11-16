@@ -215,7 +215,7 @@ class UNetConvLSTM(nn.Module):
         return param
 
 class AARMVSNet(nn.Module):
-    def __init__(self, image_scale=0.25, max_h=960, max_w=480, return_depth=False):
+    def __init__(self, image_scale=0.25, max_h=960, max_w=480, return_depth=False, use_evidential=False):
 
         super(AARMVSNet,self).__init__()
         self.feature = FeatNet()
@@ -231,8 +231,8 @@ class AARMVSNet(nn.Module):
         self.omega = InterViewAAModule(32)
 
         self.return_depth = return_depth
+        self.use_evidential = use_evidential
 
-        #TODO make dynamic
         self.evidential = EvidentialModule()
 
     def forward(self, imgs, proj_matrices, depth_values):
@@ -272,9 +272,10 @@ class AARMVSNet(nn.Module):
             prob_volume = torch.stack(cost_reg_list, dim=1).squeeze(2)
 
             #TODO Hier neben Softmax den Evidential 4-Head einfügen
-            prediction = self.evidential(prob_volume)
-
-            #prob_volume = F.softmax(prob_volume,dim=1)  # get prob volume use for recurrent to decrease memory consumption
+            if self.use_evidential:
+                prediction = self.evidential(prob_volume)
+            else:
+                prediction = F.softmax(prob_volume,dim=1)  # get prob volume use for recurrent to decrease memory consumption
 
             return {'prediction': prediction}
             

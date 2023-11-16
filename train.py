@@ -113,7 +113,10 @@ TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_wor
 
 
 print('model: AA-RMVSNet')
-model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w)
+if args.evidential:
+    model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w,use_evidential=True)
+else:
+    model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w)
 model = model.cuda()
 model = nn.parallel.DataParallel(model)
 
