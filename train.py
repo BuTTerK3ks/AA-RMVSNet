@@ -63,7 +63,8 @@ parser.add_argument('--summary_freq', type=int, default=20, help='print and summ
 parser.add_argument('--save_freq', type=int, default=1, help='save checkpoint frequency')
 parser.add_argument('--seed', type=int, default=1, metavar='S', help='random seed')
 
-parser.add_argument('--evidential', type=bool, default=False, help='use evidential deep learning')
+parser.add_argument('--evidential', type=bool, default=False, help='use evidential')
+
 
 # parse arguments and check
 args = parser.parse_args()
@@ -114,20 +115,10 @@ TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_wor
 
 
 print('model: AA-RMVSNet')
-if args.evidential:
-    model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w, use_evidential=True)
-else:
-    model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w, use_evidential=False)
+model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w)
 model = model.cuda()
 model = nn.parallel.DataParallel(model)
 
-
-if args.evidential:
-    print('loss: Evidential')
-    model_loss = loss_der
-else:
-    print('loss: Cross Entropy')
-    model_loss = mvsnet_cls_loss
 
 print('optimizer: Adam \n')
 optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -238,11 +229,11 @@ def train_sample(sample, detailed_summary=False):
 
     prediction = outputs['prediction']
     if args.evidential:
-        loss, depth_est, aleatoric, epistemic = model_loss(prediction, depth_gt, mask, depth_value)
+        loss, depth_est, aleatoric, epistemic = loss_der(outputs['evidential_prediction'], depth_gt, mask, depth_value)
         evidential_outputs = {"aleatoric": aleatoric,
                               "epistemic": epistemic}
     else:
-        loss, depth_est = model_loss(prediction, depth_gt, mask, depth_value)
+        loss, depth_est = mvsnet_cls_loss(outputs['probability_volume'], depth_gt, mask, depth_value)
         evidential_outputs = {}
 
     loss.backward()

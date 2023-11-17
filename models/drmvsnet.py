@@ -215,7 +215,7 @@ class UNetConvLSTM(nn.Module):
         return param
 
 class AARMVSNet(nn.Module):
-    def __init__(self, image_scale=0.25, max_h=960, max_w=480, return_depth=False, use_evidential=False):
+    def __init__(self, image_scale=0.25, max_h=960, max_w=480, return_depth=False):
 
         super(AARMVSNet,self).__init__()
         self.feature = FeatNet()
@@ -226,14 +226,16 @@ class AARMVSNet(nn.Module):
         num_layers = 5
         kernel_size = [(3, 3) for _ in range(num_layers)]
 
+        # Modules
         self.cost_regularization = UNetConvLSTM(input_size, input_dim, hidden_dim, kernel_size, num_layers,
                                                 bias=True)
         self.omega = InterViewAAModule(32)
-
-        self.return_depth = return_depth
-        self.use_evidential = use_evidential
-
         self.evidential = EvidentialModule()
+
+        # Variables
+        self.return_depth = return_depth
+
+
 
     def forward(self, imgs, proj_matrices, depth_values):
         imgs = torch.unbind(imgs, 1)
@@ -271,14 +273,14 @@ class AARMVSNet(nn.Module):
                 
             prob_volume = torch.stack(cost_reg_list, dim=1).squeeze(2)
 
-            #Hier neben Softmax den Evidential 4-Head
-            # Wenn evidential ist Ausgabe 4-Head, sonst 100dim prob volume
-            if self.use_evidential:
-                prediction = self.evidential(prob_volume)
-            else:
-                prediction = F.softmax(prob_volume, dim=1)  # get prob volume use for recurrent to decrease memory consumption
+            #Get evidential prediction
+            evidential_prediction = self.evidential(prob_volume)
+            probability_volume = F.softmax(prob_volume, dim=1)  # get prob volume use for recurrent to decrease memory consumption
 
-            return {'prediction': prediction}
+            return {
+                    'probability_volume': probability_volume,
+                    'evidential_prediction': evidential_prediction
+                    }
 
         #TODO include evidential
         else: #Test phase
