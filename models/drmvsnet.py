@@ -276,7 +276,7 @@ class AARMVSNet(nn.Module):
             if self.use_evidential:
                 prediction = self.evidential(prob_volume)
             else:
-                prediction = F.softmax(prob_volume,dim=1)  # get prob volume use for recurrent to decrease memory consumption
+                prediction = F.softmax(prob_volume, dim=1)  # get prob volume use for recurrent to decrease memory consumption
 
             return {'prediction': prediction}
 

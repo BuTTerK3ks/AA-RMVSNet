@@ -174,6 +174,8 @@ def train():
             do_summary = global_step % args.summary_freq == 0
             loss, scalar_outputs, image_outputs, evidential_outputs = train_sample(sample, detailed_summary=do_summary)
 
+
+
             for param_group in optimizer.param_groups:
                 lr = param_group['lr']
 
@@ -249,8 +251,8 @@ def train_sample(sample, detailed_summary=False):
     image_outputs = {"depth_est": depth_est * mask, "depth_gt": sample["depth"],
                      "ref_img": sample["imgs"][:, 0],
                      "mask": sample["mask"]}
+    image_outputs["errormap"] = (depth_est - depth_gt).abs() * mask
     if detailed_summary:
-        image_outputs["errormap"] = (depth_est - depth_gt).abs() * mask
         scalar_outputs["abs_depth_error"] = AbsDepthError_metrics(depth_est, depth_gt, mask > 0.5)
         scalar_outputs["thres2mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 2)
         scalar_outputs["thres4mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 4)

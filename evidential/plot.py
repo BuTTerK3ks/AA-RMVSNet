@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -10,8 +11,11 @@ def tensor_to_array(tensor):
     return array.squeeze()
 
 
-def rgb_image(tensor, label):
+def rgb_image(tensor):
     image = tensor_to_array(tensor)
+
+    # Transpose the image to have channels as the last dimension
+    image = np.transpose(image, (1, 2, 0))
 
     # Create a figure and axis
     fig, ax = plt.subplots()
@@ -22,6 +26,7 @@ def rgb_image(tensor, label):
     # Remove axis labels
     ax.set_xticks([])
     ax.set_yticks([])
+
 
     return fig
 
@@ -36,53 +41,50 @@ def range_with_bar(tensor):
 
     return fig
 
-def line_of_images(all_dict):
+def grid_of_images(all_dict):
 
     # Create a figure with three subplots
-    fig, axs = plt.subplots(1, 4, figsize=(10, 4))
+    fig, axs = plt.subplots(2, 2, figsize=(10, 8))
 
     # Call the function for each subplot
-    original_image = rgb_image(all_dict["aleatoric"])
-    error_map = range_with_bar(all_dict["errormap"])
-    aleatoric = range_with_bar(all_dict["aleatoric"])
-    epistemic = range_with_bar(all_dict["epistemic"])
+    original_image = tensor_to_array(all_dict["ref_img"])
+    # Transpose the image to have channels as the last dimension
+    original_image = np.transpose(original_image, (1, 2, 0))
+    error_map = tensor_to_array(all_dict["errormap"])
+    aleatoric = tensor_to_array(all_dict["aleatoric"])
+    epistemic = tensor_to_array(all_dict["epistemic"])
 
     # Add subplots to the main figure
-    axs[0].imshow(original_image.get_axes()[0].images[0].get_array(), cmap='viridis')
-    axs[1].imshow(aleatoric.get_axes()[0].images[0].get_array(), cmap='viridis')
-    axs[2].imshow(epistemic.get_axes()[0].images[0].get_array(), cmap='viridis')
+    im1 = axs[0, 0].imshow(original_image, cmap='seismic')
+    im2 = axs[0, 1].imshow(error_map, cmap='viridis')
+    im3 = axs[1, 0].imshow(aleatoric, cmap='viridis')
+    im4 = axs[1, 1].imshow(epistemic, cmap='viridis')
 
     # Add colorbars
-    divider1 = make_axes_locatable(axs[0])
+    divider1 = make_axes_locatable(axs[1, 0])
     cax1 = divider1.append_axes("right", size="5%", pad=0.05)
-    fig.colorbar(aleatoric.get_axes()[0].images[0], cax=cax1)
+    fig.colorbar(im3, cax=cax1)
 
-    divider2 = make_axes_locatable(axs[1])
+    divider2 = make_axes_locatable(axs[1, 1])
     cax2 = divider2.append_axes("right", size="5%", pad=0.05)
-    fig.colorbar(epistemic.get_axes()[0].images[0], cax=cax2)
+    fig.colorbar(im4, cax=cax2)
+
+    divider3 = make_axes_locatable(axs[0, 1])
+    cax3 = divider3.append_axes("right", size="5%", pad=0.05)
+    fig.colorbar(im2, cax=cax3)
 
     # Set titles for subplots
-    axs[2].set_title('aleatoric')
-    axs[3].set_title('epistemic')
+    axs[0, 0].set_title('Image')
+    axs[0, 1].set_title('Error')
+    axs[1, 0].set_title('Aleatoric')
+    axs[1, 1].set_title('Epistemic')
 
     # Remove axis labels
-    for ax in axs:
-        ax.set_xticks([])
-        ax.set_yticks([])
+    for row in axs:
+        for ax in row:
+            ax.set_xticks([])
+            ax.set_yticks([])
 
     plt.show()
 
-    return "1"
-
-
-def evidential(ed):
-
-    aleatoric = ed["aleatoric"]
-    aleatoric = aleatoric.detach().cpu().clone().numpy()
-    aleatoric = aleatoric.squeeze()
-    range_with_bar(aleatoric, "aleatoric")
-
-    epistemic = ed["epistemic"]
-    epistemic = epistemic.detach().cpu().clone().numpy()
-    epistemic = epistemic.squeeze()
-    range_with_bar(epistemic, "epistemic")
+    return fig
