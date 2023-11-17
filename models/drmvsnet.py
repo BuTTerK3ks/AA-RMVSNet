@@ -271,14 +271,16 @@ class AARMVSNet(nn.Module):
                 
             prob_volume = torch.stack(cost_reg_list, dim=1).squeeze(2)
 
-            #TODO Hier neben Softmax den Evidential 4-Head einfügen
+            #Hier neben Softmax den Evidential 4-Head
+            # Wenn evidential ist Ausgabe 4-Head, sonst 100dim prob volume
             if self.use_evidential:
                 prediction = self.evidential(prob_volume)
             else:
                 prediction = F.softmax(prob_volume,dim=1)  # get prob volume use for recurrent to decrease memory consumption
 
             return {'prediction': prediction}
-            
+
+        #TODO include evidential
         else: #Test phase
             shape = ref_feature.shape
             depth_image = torch.zeros(shape[0], shape[2], shape[3]).cuda()  # B * H * W

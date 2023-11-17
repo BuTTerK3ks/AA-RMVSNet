@@ -24,6 +24,7 @@ class EvidentialModule(nn.Module):
 
         return x
 
+
 #TODO Use only masked region for loss
 def loss_der(prediction, depth_gt, mask, depth_value, coeff=0.01):
 

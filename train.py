@@ -18,7 +18,7 @@ import ast
 from datasets.data_io import *
 
 from evidential.models import loss_der
-from evidential import plot
+from evidential.save import *
 
 cudnn.benchmark = True
 
@@ -63,7 +63,7 @@ parser.add_argument('--summary_freq', type=int, default=20, help='print and summ
 parser.add_argument('--save_freq', type=int, default=1, help='save checkpoint frequency')
 parser.add_argument('--seed', type=int, default=1, metavar='S', help='random seed')
 
-parser.add_argument('--evidential', type=bool, default=False, help='use evidential learning')
+parser.add_argument('--evidential', type=bool, default=False, help='use evidential deep learning')
 
 # parse arguments and check
 args = parser.parse_args()
@@ -117,7 +117,7 @@ print('model: AA-RMVSNet')
 if args.evidential:
     model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w, use_evidential=True)
 else:
-    model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w)
+    model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w, use_evidential=False)
 model = model.cuda()
 model = nn.parallel.DataParallel(model)
 
@@ -177,8 +177,8 @@ def train():
             for param_group in optimizer.param_groups:
                 lr = param_group['lr']
 
-            #if args.evidential:
-                #plot.evidential(evidential_outputs)
+            if args.evidential:
+                save_evidential(image_outputs, evidential_outputs)
             
             if do_summary:
                 save_scalars(logger, 'train', scalar_outputs, global_step)
@@ -228,7 +228,6 @@ def train_sample(sample, detailed_summary=False):
 
     sample_cuda = tocuda(sample)
 
-    #TODO Hier loss ändern
     depth_gt = sample_cuda["depth"]
     mask = sample_cuda["mask"]
     depth_interval = sample_cuda["depth_interval"]
@@ -236,7 +235,6 @@ def train_sample(sample, detailed_summary=False):
     outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
 
     prediction = outputs['prediction']
-    #TODO make depth est right
     if args.evidential:
         loss, depth_est, aleatoric, epistemic = model_loss(prediction, depth_gt, mask, depth_value)
         evidential_outputs = {"aleatoric": aleatoric,
