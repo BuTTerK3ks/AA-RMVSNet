@@ -232,7 +232,6 @@ def train_sample(sample, detailed_summary=False):
         loss, depth_est, aleatoric, epistemic = loss_der(outputs['evidential_prediction'], depth_gt, mask, depth_value)
         evidential_outputs = {"aleatoric": aleatoric,
                               "epistemic": epistemic}
-        depth_est = depth_est * 1000
     else:
         loss, depth_est = mvsnet_cls_loss(outputs['probability_volume'], depth_gt, mask, depth_value)
         evidential_outputs = {}
@@ -244,7 +243,8 @@ def train_sample(sample, detailed_summary=False):
                      "ref_img": sample["imgs"][:, 0],
                      "ref_img_original": sample["imgs_original"][:, 0],
                      "mask": sample["mask"]}
-    image_outputs["errormap"] = (depth_est - depth_gt).abs() * mask
+    #image_outputs["errormap"] = (depth_est - depth_gt).abs() * mask
+    image_outputs["errormap"] = (depth_est - depth_gt).abs()
     if detailed_summary:
         scalar_outputs["abs_depth_error"] = AbsDepthError_metrics(depth_est, depth_gt, mask > 0.5)
         scalar_outputs["thres2mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 2)
