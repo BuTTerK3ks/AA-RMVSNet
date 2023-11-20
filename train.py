@@ -60,10 +60,11 @@ parser.add_argument('--save_dir', default=None, help='the directory to save chec
 parser.add_argument('--resume', action='store_true', help='continue to train the model')
 
 parser.add_argument('--summary_freq', type=int, default=20, help='print and summary frequency')
-parser.add_argument('--save_freq', type=int, default=1, help='save checkpoint frequency')
+parser.add_argument('--save_freq_checkpoint', type=int, default=1, help='save checkpoint frequency')
 parser.add_argument('--seed', type=int, default=1, metavar='S', help='random seed')
 
 parser.add_argument('--evidential', type=bool, default=False, help='use evidential')
+parser.add_argument('--save_freq_fig', type=int, default=20, help='save figure frequency')
 
 
 # parse arguments and check
@@ -170,7 +171,7 @@ def train():
             for param_group in optimizer.param_groups:
                 lr = param_group['lr']
 
-            if args.evidential:
+            if args.evidential and batch_idx % args.save_freq_fig == 0:
                 save_evidential(image_outputs, evidential_outputs)
             
             if do_summary:
@@ -184,7 +185,7 @@ def train():
                                                                                      time.time() - start_time))
 
         # checkpoint
-        if (epoch_idx + 1) % args.save_freq == 0:
+        if (epoch_idx + 1) % args.save_freq_checkpoint == 0:
             torch.save({
                 'epoch': epoch_idx,
                 'model': model.state_dict(),
@@ -227,11 +228,11 @@ def train_sample(sample, detailed_summary=False):
     depth_value = sample_cuda["depth_values"]
     outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
 
-    prediction = outputs['prediction']
     if args.evidential:
         loss, depth_est, aleatoric, epistemic = loss_der(outputs['evidential_prediction'], depth_gt, mask, depth_value)
         evidential_outputs = {"aleatoric": aleatoric,
                               "epistemic": epistemic}
+        depth_est = depth_est * 1000
     else:
         loss, depth_est = mvsnet_cls_loss(outputs['probability_volume'], depth_gt, mask, depth_value)
         evidential_outputs = {}
@@ -241,6 +242,7 @@ def train_sample(sample, detailed_summary=False):
     scalar_outputs = {"loss": loss}
     image_outputs = {"depth_est": depth_est * mask, "depth_gt": sample["depth"],
                      "ref_img": sample["imgs"][:, 0],
+                     "ref_img_original": sample["imgs_original"][:, 0],
                      "mask": sample["mask"]}
     image_outputs["errormap"] = (depth_est - depth_gt).abs() * mask
     if detailed_summary:

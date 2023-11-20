@@ -47,15 +47,15 @@ def grid_of_images(all_dict):
     fig, axs = plt.subplots(2, 2, figsize=(10, 8))
 
     # Call the function for each subplot
-    original_image = tensor_to_array(all_dict["ref_img"])
+    original_image = tensor_to_array(all_dict["ref_img_original"])
     # Transpose the image to have channels as the last dimension
-    original_image = np.transpose(original_image, (1, 2, 0))
+    original_image = np.transpose(original_image, (1, 2, 0))/255
     error_map = tensor_to_array(all_dict["errormap"])
     aleatoric = tensor_to_array(all_dict["aleatoric"])
     epistemic = tensor_to_array(all_dict["epistemic"])
 
     # Add subplots to the main figure
-    im1 = axs[0, 0].imshow(original_image, cmap='seismic')
+    im1 = axs[0, 0].imshow(original_image)
     im2 = axs[0, 1].imshow(error_map, cmap='viridis')
     im3 = axs[1, 0].imshow(aleatoric, cmap='viridis')
     im4 = axs[1, 1].imshow(epistemic, cmap='viridis')
@@ -86,5 +86,4 @@ def grid_of_images(all_dict):
             ax.set_yticks([])
 
     plt.show()
-
     return fig

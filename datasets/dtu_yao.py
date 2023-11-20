@@ -84,7 +84,15 @@ class MVSDataset(Dataset):
             w, h = img.size
             img = img.resize((int(self.image_scale * w), int(self.image_scale*h))) # origin: 0.25
         # scale 0~255 to 0~1
-        return self.center_img(np.array(img, dtype=np.float32))	
+        return self.center_img(np.array(img, dtype=np.float32))
+
+    def read_original_img(self, filename):
+        img = Image.open(filename)
+        if self.image_scale != 1.0:
+            w, h = img.size
+            img = img.resize((int(self.image_scale * w), int(self.image_scale*h))) # origin: 0.25
+        # scale 0~255 to 0~1
+        return np.array(img, dtype=np.float32)
 
     def center_img(self, img): # this is very important for batch normalization
         img = img.astype(np.float32)
@@ -105,6 +113,7 @@ class MVSDataset(Dataset):
         view_ids = [ref_view] + src_views[:self.nviews - 1]
 
         imgs = []
+        imgs_original = []
         mask = None
         depth = None
         depth_values = None
@@ -128,6 +137,7 @@ class MVSDataset(Dataset):
             if i == 0:
                 depth_name = depth_filename
             imgs.append(self.read_img(img_filename))
+            imgs_original.append(self.read_original_img(img_filename))
             intrinsics, extrinsics, depth_min, depth_interval = self.read_cam_file(proj_mat_filename)
 
             # multiply intrinsics and extrinsics to get projection matrix
@@ -156,12 +166,14 @@ class MVSDataset(Dataset):
                 #mask = np.array((depth > depth_min+depth_interval) & (depth < depth_min+(self.ndepths-2)*depth_interval), dtype=np.float32)
                 mask = np.array((depth >= depth_min) & (depth <= depth_end), dtype=np.float32)
         imgs = np.stack(imgs).transpose([0, 3, 1, 2])
+        imgs_original = np.stack(imgs_original).transpose([0, 3, 1, 2])
         proj_matrices = np.stack(proj_matrices)
 
         if (flip_flag and self.both) or (self.reverse and not self.both):
             depth_values = np.array([depth_values[len(depth_values)-i-1]for i in range(len(depth_values))])
         
         return {"imgs": imgs,
+                "imgs_original": imgs_original,
                 "proj_matrices": proj_matrices,
                 "depth": depth,
                 "depth_values": depth_values, # generate depth index

@@ -25,20 +25,26 @@ class EvidentialModule(nn.Module):
         return x
 
 
-#TODO Use only masked region for loss
-def loss_der(prediction, depth_gt, mask, depth_value, coeff=0.01):
+
+def loss_der(prediction, depth_gt, mask, depth_value, coeff=0.01, use_mask=False):
 
 
     gamma, nu, alpha, beta = prediction[:, 0, :, :], prediction[:, 1, :, :], prediction[:, 2, :, :], prediction[:, 3, :, :]
-    error = gamma - depth_gt
+    # TODO bessr machen
+    error = gamma - (depth_gt/1000)
     omega = 2.0 * beta * (1.0 + nu)
 
     calculated_loss = 0.5 * torch.log(math.pi / nu) - alpha * torch.log(omega) + (alpha + 0.5) * torch.log(error ** 2 * nu + omega) + torch.lgamma(alpha) - torch.lgamma(alpha + 0.5) + coeff * torch.abs(error) * (2.0 * nu + alpha)
-    masked_loss = calculated_loss * mask
-    masked_loss = torch.mean(masked_loss)
+    if use_mask:
+        masked_loss = calculated_loss * mask
+        loss = torch.mean(masked_loss)
+    else:
+        loss = torch.mean(calculated_loss)
 
     aleatoric = torch.sqrt(beta * (nu + 1) / nu / alpha)
     epistemic = 1. / torch.sqrt(nu)
 
+
+
     # TODO check if right
-    return masked_loss, gamma, aleatoric, epistemic
+    return loss, gamma, aleatoric, epistemic
