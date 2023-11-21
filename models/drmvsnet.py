@@ -305,6 +305,8 @@ class AARMVSNet(nn.Module):
                     volume_variance = warped_volumes / len(src_features)
 
                 cost_reg, hidden_state = self.cost_regularization(-1 * volume_variance, hidden_state, d)
+                #TODO Hier evidential
+
                 prob = torch.exp(cost_reg.squeeze(1))
                 depth = depth_values[:, d]  # B
                 temp_depth_image = depth.view(shape[0], 1, 1).repeat(1, shape[2], shape[3])
