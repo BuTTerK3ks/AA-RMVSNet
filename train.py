@@ -6,6 +6,7 @@ import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from itertools import islice
 
 import time
 from tensorboardX import SummaryWriter
@@ -160,7 +161,9 @@ def train():
         global_step = len(TrainImgLoader) * epoch_idx
         print('Start Training')
         # training
-        for batch_idx, sample in enumerate(TrainImgLoader):
+        #TODO Hier wird nur bis x trainiert
+        #for batch_idx, sample in enumerate(TrainImgLoader):
+        for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 100, 1)):
             start_time = time.time()
             global_step = len(TrainImgLoader) * epoch_idx + batch_idx
             do_summary = global_step % args.summary_freq == 0
@@ -168,12 +171,14 @@ def train():
 
 
 
+
             for param_group in optimizer.param_groups:
                 lr = param_group['lr']
 
-            if args.evidential and batch_idx % args.save_freq_fig == 0:
-                save_evidential(image_outputs, evidential_outputs)
-            
+            if batch_idx % args.save_freq_fig == 0:
+                save_errormap(image_outputs, evidential_outputs)
+
+
             if do_summary:
                 save_scalars(logger, 'train', scalar_outputs, global_step)
                 logger.add_scalar('train/lr', lr, global_step)
@@ -264,7 +269,7 @@ def test_sample(sample, detailed_summary=True):
     depth_value = sample_cuda["depth_values"]
     outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
 
-    prob_volume = outputs['prob_volume']
+    prob_volume = outputs['probability_volume']
     loss, depth_est, photometric_confidence = mvsnet_cls_loss(prob_volume, depth_gt, mask, depth_value, return_prob_map=True)
 
     scalar_outputs = {"loss": loss}

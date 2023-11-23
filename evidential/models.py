@@ -10,12 +10,12 @@ def normalize_target(target, target_min, target_max):
 def denormalize_target(normalized_target, target_min, target_max):
     return normalized_target * (target_max - target_min) + target_min
 
-def map_to_0_1(tensor, min_value, max_value):
-    mapped_tensor = (tensor - min_value) / (max_value - min_value)
+def map_to_minus1_1(tensor, min_value, max_value):
+    mapped_tensor = 2 * (tensor - min_value) / (max_value - min_value) - 1
     return mapped_tensor
 
 def map_to_original_range(mapped_tensor, min_value, max_value):
-    original_tensor = mapped_tensor * (max_value - min_value) + min_value
+    original_tensor = 0.5 * (mapped_tensor + 1) * (max_value - min_value) + min_value
     return original_tensor
 
 class EvidentialModule(nn.Module):
@@ -39,15 +39,17 @@ class EvidentialModule(nn.Module):
 
 
 
-def loss_der(prediction, depth_gt, mask, depth_value, coeff=0.01, use_mask=False):
+def loss_der(prediction, depth_gt, mask, depth_value, coeff=0.01, use_mask=True):
 
-
+    prediction = prediction/1000
     gamma, nu, alpha, beta = prediction[:, 0, :, :], prediction[:, 1, :, :], prediction[:, 2, :, :], prediction[:, 3, :, :]
-    depth = map_to_0_1(depth_gt, 425, 687.35)
-    error = gamma - depth
+    # map depth values to range [0,1]
+    depth = map_to_minus1_1(depth_gt, torch.min(depth_value.flatten()), torch.max(depth_value.flatten())) * mask
+    error = gamma - depth_gt
     omega = 2.0 * beta * (1.0 + nu)
 
     calculated_loss = 0.5 * torch.log(math.pi / nu) - alpha * torch.log(omega) + (alpha + 0.5) * torch.log(error ** 2 * nu + omega) + torch.lgamma(alpha) - torch.lgamma(alpha + 0.5) + coeff * torch.abs(error) * (2.0 * nu + alpha)
+    #TODO Check if masked loss is right
     if use_mask:
         masked_loss = calculated_loss * mask
         loss = torch.mean(masked_loss)
@@ -56,10 +58,7 @@ def loss_der(prediction, depth_gt, mask, depth_value, coeff=0.01, use_mask=False
 
     aleatoric = torch.sqrt(beta * (nu + 1) / nu / alpha)
     epistemic = 1. / torch.sqrt(nu)
-    #TODO Change for other dataset
-    depth_est = map_to_original_range(gamma, 425, 687.35)
 
+    depth_est = map_to_original_range(gamma, torch.min(depth_value.flatten()), torch.max(depth_value.flatten())) * mask
 
-
-    # TODO check if right
     return loss, depth_est, aleatoric, epistemic

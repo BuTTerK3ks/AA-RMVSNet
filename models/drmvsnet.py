@@ -282,7 +282,7 @@ class AARMVSNet(nn.Module):
                     'evidential_prediction': evidential_prediction
                     }
 
-        #TODO include evidential
+        #TODO include evidential - both simultaniously
         else: #Test phase
             shape = ref_feature.shape
             depth_image = torch.zeros(shape[0], shape[2], shape[3]).cuda()  # B * H * W
@@ -301,11 +301,12 @@ class AARMVSNet(nn.Module):
                         warped_volumes = (reweight + 1) * warped_volume
                     else:
                         warped_volumes = warped_volumes + (reweight + 1) * warped_volume
-                            
+                # TODO Hier eins ausgerückt, checken!
                     volume_variance = warped_volumes / len(src_features)
 
                 cost_reg, hidden_state = self.cost_regularization(-1 * volume_variance, hidden_state, d)
                 #TODO Hier evidential
+                cost_reg_list.append(cost_reg)
 
                 prob = torch.exp(cost_reg.squeeze(1))
                 depth = depth_values[:, d]  # B
@@ -324,7 +325,10 @@ class AARMVSNet(nn.Module):
 
             conf = max_prob_image / forward_exp_sum
 
-            return {"depth": forward_depth_map, "photometric_confidence": conf}
+            prob_volume = torch.stack(cost_reg_list, dim=1).squeeze(2)
+            evidential_prediction = self.evidential(prob_volume)
+
+            return {"depth": forward_depth_map, "photometric_confidence": conf, 'evidential_prediction': evidential_prediction}
 
 def mvsnet_cls_loss(prob_volume, depth_gt, mask, depth_value, return_prob_map=False):
     # depth_value: B * NUM
