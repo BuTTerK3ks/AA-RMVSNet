@@ -234,7 +234,7 @@ def train_sample(sample, detailed_summary=False):
     outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
 
     if args.evidential:
-        loss, depth_est, aleatoric, epistemic = loss_der(outputs['evidential_prediction'], depth_gt, mask, depth_value)
+        loss, depth_est, aleatoric, epistemic = loss_der(outputs, depth_gt, mask, depth_value)
         evidential_outputs = {"aleatoric": aleatoric,
                               "epistemic": epistemic}
     else:

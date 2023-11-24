@@ -273,8 +273,9 @@ class AARMVSNet(nn.Module):
                 
             prob_volume = torch.stack(cost_reg_list, dim=1).squeeze(2)
 
-            #Get evidential prediction
+            # Get evidential prediction
             evidential_prediction = self.evidential(prob_volume)
+
             probability_volume = F.softmax(prob_volume, dim=1)  # get prob volume use for recurrent to decrease memory consumption
 
             return {
