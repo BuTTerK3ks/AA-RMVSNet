@@ -39,7 +39,7 @@ class EvidentialModule(nn.Module):
 
 
 
-def loss_der(prediction, depth_gt, mask, depth_value, coeff=0.01, use_mask=False):
+def loss_der(prediction, depth_gt, mask, depth_value, coeff=0.01, use_mask=True):
 
 
     gamma, nu, alpha, beta = prediction[:, 0, :, :], prediction[:, 1, :, :], prediction[:, 2, :, :], prediction[:, 3, :, :]
