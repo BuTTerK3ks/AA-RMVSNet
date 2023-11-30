@@ -46,15 +46,15 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     evidential_prediction = outputs['evidential_prediction']
     probability_volume = outputs['probability_volume']
 
-
-    # TODO dont hardcode
     probability_map = torch.argmax(probability_volume, dim=1).type(torch.long)
     depth_map = torch.take(depth_value, probability_map)
 
     nu, alpha, beta = evidential_prediction[:, 0, :, :], evidential_prediction[:, 1, :, :], evidential_prediction[:, 2, :, :]
-    # map depth values to range [0,1]
-    #depth = map_to_0_1(depth_gt, torch.min(depth_value.flatten()), torch.max(depth_value.flatten()))
     error = depth_map - depth_gt
+
+    # map errors to relative range [0,1]
+    error = map_to_0_1(error, torch.min(depth_value.flatten()), torch.max(depth_value.flatten()))
+
     omega = 2.0 * beta * (1.0 + nu)
 
     calculated_loss = 0.5 * torch.log(math.pi / nu) - alpha * torch.log(omega) + (alpha + 0.5) * torch.log(error ** 2 * nu + omega) + torch.lgamma(alpha) - torch.lgamma(alpha + 0.5) + coeff * torch.abs(error) * (2.0 * nu + alpha)
@@ -65,6 +65,5 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     aleatoric = torch.sqrt(beta * (nu + 1) / nu / alpha)
     epistemic = 1. / torch.sqrt(nu)
 
-    depth_est = map_to_original_range_0_1(depth_map, torch.min(depth_value.flatten()), torch.max(depth_value.flatten()))
 
-    return loss, depth_est, aleatoric, epistemic
+    return loss, depth_map, aleatoric, epistemic
