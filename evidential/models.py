@@ -54,7 +54,7 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     nu, alpha, beta = evidential_prediction[:, 0, :, :], evidential_prediction[:, 1, :, :], evidential_prediction[:, 2, :, :]
     # map depth values to range [0,1]
     #depth = map_to_0_1(depth_gt, torch.min(depth_value.flatten()), torch.max(depth_value.flatten()))
-    error = (depth_map - depth_gt)/1000
+    error = depth_map - depth_gt
     omega = 2.0 * beta * (1.0 + nu)
 
     calculated_loss = 0.5 * torch.log(math.pi / nu) - alpha * torch.log(omega) + (alpha + 0.5) * torch.log(error ** 2 * nu + omega) + torch.lgamma(alpha) - torch.lgamma(alpha + 0.5) + coeff * torch.abs(error) * (2.0 * nu + alpha)
