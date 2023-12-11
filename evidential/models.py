@@ -44,12 +44,13 @@ def loss_der(prediction, depth_gt, mask, depth_value, coeff=0.01, use_mask=True)
 
     gamma, nu, alpha, beta = prediction[:, 0, :, :], prediction[:, 1, :, :], prediction[:, 2, :, :], prediction[:, 3, :, :]
     depth = map_to_0_1(depth_gt, 425, 687.35)
+    #depth = depth_gt
     error = gamma - depth
     omega = 2.0 * beta * (1.0 + nu)
 
     calculated_loss = 0.5 * torch.log(math.pi / nu) - alpha * torch.log(omega) + (alpha + 0.5) * torch.log(error ** 2 * nu + omega) + torch.lgamma(alpha) - torch.lgamma(alpha + 0.5) + coeff * torch.abs(error) * (2.0 * nu + alpha)
     if use_mask:
-        masked_loss = calculated_loss * mask
+        masked_loss = torch.mul(mask, calculated_loss)  # valid pixel
         loss = torch.mean(masked_loss)
     else:
         loss = torch.mean(calculated_loss)
@@ -58,6 +59,7 @@ def loss_der(prediction, depth_gt, mask, depth_value, coeff=0.01, use_mask=True)
     epistemic = 1. / torch.sqrt(nu)
     #TODO Change for other dataset
     depth_est = map_to_original_range(gamma, 425, 687.35)
+    #depth_est = gamma
 
 
 

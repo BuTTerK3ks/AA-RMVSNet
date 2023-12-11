@@ -14,3 +14,21 @@ def save_evidential(image_outputs, evidential_outputs):
     returned_figure = grid_of_images(onedict)
     plt.savefig(save_path + filename)
     plt.close('all')
+
+def draw_disparity(outputs):
+    plt.clf()
+
+
+    outputs = outputs
+    probabilities = outputs['probability_volume']
+    pixel_values = probabilities[0, :, 64, 80].detach().cpu()
+
+    # Plotting the values
+    #plt.figure(figsize=(10, 6))
+    plt.plot(pixel_values, color='blue')
+    plt.title('Disparity diagramm')
+    plt.xlabel('Probability')
+    plt.ylabel('Depth')
+    plt.show()
+
+    plt.close('all')
