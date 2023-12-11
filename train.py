@@ -228,7 +228,7 @@ def train_sample(sample, detailed_summary=False):
     depth_value = sample_cuda["depth_values"]
     outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
 
-    draw_disparity(outputs)
+    #draw_disparity(outputs)
 
     if args.evidential:
         loss, depth_est, aleatoric, epistemic = loss_der(outputs['evidential_prediction'], depth_gt, mask, depth_value)
@@ -245,8 +245,8 @@ def train_sample(sample, detailed_summary=False):
                      "ref_img": sample["imgs"][:, 0],
                      "ref_img_original": sample["imgs_original"][:, 0],
                      "mask": sample["mask"]}
-    #image_outputs["errormap"] = (depth_est - depth_gt).abs() * mask
-    image_outputs["errormap"] = (depth_est - depth_gt).abs()
+    image_outputs["errormap"] = (depth_est - depth_gt).abs() * mask
+    #image_outputs["errormap"] = (depth_est - depth_gt).abs()
     if detailed_summary:
         scalar_outputs["abs_depth_error"] = AbsDepthError_metrics(depth_est, depth_gt, mask > 0.5)
         scalar_outputs["thres2mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 2)
@@ -267,7 +267,7 @@ def test_sample(sample, detailed_summary=True):
     outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
 
     prob_volume = outputs['prob_volume']
-    loss, depth_est, photometric_confidence = model_loss(prob_volume, depth_gt, mask, depth_value, return_prob_map=True)
+    loss, depth_est, photometric_confidence = mvsnet_cls_loss(prob_volume, depth_gt, mask, depth_value, return_prob_map=True)
 
     scalar_outputs = {"loss": loss}
     image_outputs = {"depth_est": depth_est * mask,
