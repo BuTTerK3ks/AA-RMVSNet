@@ -163,7 +163,7 @@ def train():
         # training
         #TODO Hier wird nur bis x trainiert
         #for batch_idx, sample in enumerate(TrainImgLoader):
-        for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 100, 1)):
+        for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 50, 1)):
             start_time = time.time()
             global_step = len(TrainImgLoader) * epoch_idx + batch_idx
             do_summary = global_step % args.summary_freq == 0
@@ -185,7 +185,7 @@ def train():
                 save_images(logger, 'train', image_outputs, global_step)
             del scalar_outputs, image_outputs
             print(
-                'Epoch {}/{}, Iter {}/{}, LR {}, train loss = {:.3f}, time = {:.3f}'.format(epoch_idx, args.epochs, batch_idx,
+                'Epoch {}/{}, Iter {}/{}, LR {}, train loss = {}, time = {:.3f}'.format(epoch_idx, args.epochs, batch_idx,
                                                                                      len(TrainImgLoader), lr, loss,
                                                                                      time.time() - start_time))
 

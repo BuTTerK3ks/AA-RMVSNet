@@ -10,15 +10,6 @@ def normalize_target(target, target_min, target_max):
 def denormalize_target(normalized_target, target_min, target_max):
     return normalized_target * (target_max - target_min) + target_min
 
-def map_to_0_1(tensor, min_value, max_value):
-    mapped_tensor = (tensor - min_value) / (max_value - min_value)
-    return mapped_tensor
-
-def map_to_original_range_0_1(mapped_tensor, min_value, max_value):
-    original_tensor = mapped_tensor * (max_value - min_value) + min_value
-    return original_tensor
-
-
 class EvidentialModule(nn.Module):
     def __init__(self):
         super(EvidentialModule, self).__init__()
@@ -50,17 +41,24 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     depth_map = torch.take(depth_value, probability_map)
 
     nu, alpha, beta = evidential_prediction[:, 0, :, :], evidential_prediction[:, 1, :, :], evidential_prediction[:, 2, :, :]
-    error = depth_map - depth_gt
+    #error = depth_map - depth_gt
 
     # map errors to relative range [0,1]
-    error = map_to_0_1(error, torch.min(depth_value.flatten()), torch.max(depth_value.flatten()))
+    t_min = torch.min(depth_value.flatten())
+    t_max = torch.max(depth_value.flatten())
+    depth_map_normalized = normalize_target(depth_map, torch.min(depth_value.flatten()), torch.max(depth_value.flatten())) * mask
+    depth_gt_normalized = normalize_target(depth_gt, torch.min(depth_value.flatten()), torch.max(depth_value.flatten())) * mask
+    error = depth_map_normalized - depth_gt_normalized
 
     omega = 2.0 * beta * (1.0 + nu)
 
     calculated_loss = 0.5 * torch.log(math.pi / nu) - alpha * torch.log(omega) + (alpha + 0.5) * torch.log(error ** 2 * nu + omega) + torch.lgamma(alpha) - torch.lgamma(alpha + 0.5) + coeff * torch.abs(error) * (2.0 * nu + alpha)
     #TODO Check if masked loss is right
     masked_loss = calculated_loss * mask
-    loss = torch.mean(calculated_loss)
+    valid_pixel_num = torch.sum(mask, dim=[1, 2]) + 1e-6
+    loss = torch.sum(masked_loss / valid_pixel_num)
+
+
 
     aleatoric = torch.sqrt(beta * (nu + 1) / nu / alpha)
     epistemic = 1. / torch.sqrt(nu)
