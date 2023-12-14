@@ -37,11 +37,11 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     evidential_prediction = outputs['evidential_prediction']
     probability_volume = outputs['probability_volume']
 
+    # take max probability and get depth
     probability_map = torch.argmax(probability_volume, dim=1).type(torch.long)
     depth_map = torch.take(depth_value, probability_map)
 
     nu, alpha, beta = evidential_prediction[:, 0, :, :], evidential_prediction[:, 1, :, :], evidential_prediction[:, 2, :, :]
-    #error = depth_map - depth_gt
 
     # map errors to relative range [0,1]
     t_min = torch.min(depth_value.flatten())
