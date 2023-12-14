@@ -23,7 +23,8 @@ class EvidentialModule(nn.Module):
         super(EvidentialModule, self).__init__()
 
         # gamma, nu, alpha, beta
-        self.convolution = nn.Conv2d(100, 4, kernel_size=1, stride=1, padding=0)
+        self.convolution = nn.Sequential(nn.Conv2d(100, 4, kernel_size=1, stride=1, padding=0),
+                                         nn.BatchNorm2d(4))
 
     def forward(self, x):
         x = self.convolution(x)
