@@ -230,7 +230,6 @@ class AARMVSNet(nn.Module):
         self.cost_regularization = UNetConvLSTM(input_size, input_dim, hidden_dim, kernel_size, num_layers,
                                                 bias=True)
         self.omega = InterViewAAModule(32)
-        self.evidential = EvidentialModule()
 
         # Variables
         self.return_depth = return_depth
@@ -274,13 +273,11 @@ class AARMVSNet(nn.Module):
             prob_volume = torch.stack(cost_reg_list, dim=1).squeeze(2)
 
             # Get evidential prediction
-            evidential_prediction = self.evidential(prob_volume)
 
             probability_volume = F.softmax(prob_volume, dim=1)  # get prob volume use for recurrent to decrease memory consumption
 
             return {
-                    'probability_volume': probability_volume,
-                    'evidential_prediction': evidential_prediction
+                    'probability_volume': probability_volume
                     }
 
         #TODO include evidential - both simultaniously

@@ -118,6 +118,30 @@ TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_wor
 
 print('model: AA-RMVSNet')
 model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w)
+
+# Find total parameters and trainable parameters
+total_params = sum(p.numel() for p in model.parameters())
+print(f'{total_params:,} total parameters.')
+total_trainable_params = sum(
+    p.numel() for p in model.parameters() if p.requires_grad)
+print(f'{total_trainable_params:,} training parameters.')
+
+# load checkpoint file specified by args.loadckpt
+print("loading model {}".format(args.loadckpt))
+
+# Allow both keys xxx & module.xxx in dict
+state_dict = torch.load(args.loadckpt)
+if "module.feature.conv0_0.0.weight" in state_dict['model']:
+    print("With module in keys")
+    model = nn.DataParallel(model)
+    model.load_state_dict(state_dict['model'], True)
+
+else:
+    print("No module in keys")
+    model.load_state_dict(state_dict['model'], True)
+    model = nn.DataParallel(model)
+
+
 model = model.cuda()
 model = nn.parallel.DataParallel(model)
 
@@ -139,12 +163,14 @@ if (args.mode == "train" and args.resume):
     print(optimizer)
 
     start_epoch = state_dict['epoch'] + 1
+    '''
 elif args.loadckpt:
     # load checkpoint file specified by args.loadckpt
     print("loading model {}".format(args.loadckpt))
     state_dict = torch.load(args.loadckpt)
     model.load_state_dict(state_dict['model'])
 print("start at epoch {}".format(start_epoch))
+    '''
 
 # main function
 def train():
@@ -224,7 +250,6 @@ def train():
 def train_sample(sample, detailed_summary=False):
     model.train()
     optimizer.zero_grad()
-
     sample_cuda = tocuda(sample)
 
     depth_gt = sample_cuda["depth"]
