@@ -18,7 +18,7 @@ import datetime
 import ast
 from datasets.data_io import *
 
-from evidential.models import loss_der
+from evidential.models import *
 from evidential.save import *
 
 cudnn.benchmark = True
@@ -256,7 +256,13 @@ def train_sample(sample, detailed_summary=False):
     mask = sample_cuda["mask"]
     depth_interval = sample_cuda["depth_interval"]
     depth_value = sample_cuda["depth_values"]
-    outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
+    with torch.no_grad():
+        outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
+    probability_volume = outputs["probability_volume"].cuda()
+
+    evidential_model = EvidentialModule().cuda()
+
+    outputs['evidential_prediction'] = evidential_model(probability_volume)
 
     if args.evidential:
         loss, depth_est, aleatoric, epistemic = loss_der(outputs, depth_gt, mask, depth_value)
