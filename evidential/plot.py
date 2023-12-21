@@ -44,7 +44,7 @@ def range_with_bar(tensor):
 def grid_of_images(all_dict):
 
 
-    fig, axs = plt.subplots(2, 2, figsize=(10, 8))
+    fig, axs = plt.subplots(3, 2, figsize=(10, 12))
 
     original_image = tensor_to_array(all_dict["ref_img_original"])
     # Transpose the image to have channels as the last dimension
@@ -81,6 +81,19 @@ def grid_of_images(all_dict):
 
         axs[1, 0].set_title('Aleatoric')
         axs[1, 1].set_title('Epistemic')
+
+    std_dev = tensor_to_array(all_dict["std_dev"])
+    # Transpose the image to have channels as the last dimension
+
+    # Add subplots to the main figure
+    im5 = axs[2, 0].imshow(std_dev)
+
+    divider4 = make_axes_locatable(axs[2, 0])
+    cax4 = divider4.append_axes("right", size="5%", pad=0.05)
+    fig.colorbar(im5, cax=cax4)
+
+    # Set titles for subplots
+    axs[2, 0].set_title('Standard deviation')
 
 
     # Remove axis labels

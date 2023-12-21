@@ -20,6 +20,7 @@ from datasets.data_io import *
 
 from evidential.models import *
 from evidential.save import *
+from evidential.statistics import *
 
 cudnn.benchmark = True
 
@@ -188,8 +189,8 @@ def train():
         print('Start Training')
         # training
         #TODO Hier wird nur bis x trainiert
-        #for batch_idx, sample in enumerate(TrainImgLoader):
-        for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 100, 1)):
+        for batch_idx, sample in enumerate(TrainImgLoader):
+        #for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 100, 1)):
             start_time = time.time()
             global_step = len(TrainImgLoader) * epoch_idx + batch_idx
             do_summary = global_step % args.summary_freq == 0
@@ -260,7 +261,11 @@ def train_sample(sample, detailed_summary=False):
         outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
     probability_volume = outputs["probability_volume"].cuda()
 
-    evidential_model = EvidentialModule().cuda()
+    # Evidential part
+    evidential_model = EvidentialModule(depth=args.numdepth).cuda()
+    evidential_model.train()
+
+    std_dev = std_prob(probability_volume)
 
     outputs['evidential_prediction'] = evidential_model(probability_volume)
 
@@ -277,6 +282,7 @@ def train_sample(sample, detailed_summary=False):
     scalar_outputs = {"loss": loss}
     image_outputs = {"depth_est": depth_est * mask, "depth_gt": sample["depth"],
                      "ref_img": sample["imgs"][:, 0],
+                     "std_dev": std_dev,
                      "ref_img_original": sample["imgs_original"][:, 0],
                      "mask": sample["mask"]}
     image_outputs["errormap"] = (depth_est - depth_gt).abs() * mask

@@ -20,11 +20,11 @@ def map_to_original_range_0_1(mapped_tensor, min_value, max_value):
 
 
 class EvidentialModule(nn.Module):
-    def __init__(self):
+    def __init__(self, depth):
         super(EvidentialModule, self).__init__()
 
         # nu, alpha, beta
-        self.convolution = nn.Conv2d(100, 3, kernel_size=1, stride=1, padding=0)
+        self.convolution = nn.Conv2d(depth, 3, kernel_size=1, stride=1, padding=0)
 
     def forward(self, probability_volume):
         y = self.convolution(probability_volume)
