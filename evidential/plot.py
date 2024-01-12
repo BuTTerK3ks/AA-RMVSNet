@@ -82,6 +82,19 @@ def grid_of_images(all_dict):
         axs[1, 0].set_title('Aleatoric')
         axs[1, 1].set_title('Epistemic')
 
+        alea_by_epis = tensor_to_array(all_dict["alea_by_epis"])
+        # Transpose the image to have channels as the last dimension
+
+        # Add subplots to the main figure
+        im6 = axs[2, 1].imshow(alea_by_epis)
+
+        divider5 = make_axes_locatable(axs[2, 1])
+        cax5 = divider5.append_axes("right", size="5%", pad=0.05)
+        fig.colorbar(im6, cax=cax5)
+
+        # Set titles for subplots
+        axs[2, 1].set_title('Aleatoric/Epistemic')
+
     std_dev = tensor_to_array(all_dict["std_dev"])
     # Transpose the image to have channels as the last dimension
 

@@ -257,17 +257,20 @@ def train_sample(sample, detailed_summary=False):
     mask = sample_cuda["mask"]
     depth_interval = sample_cuda["depth_interval"]
     depth_value = sample_cuda["depth_values"]
-    with torch.no_grad():
-        outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
+    #with torch.no_grad():
+    outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
     probability_volume = outputs["probability_volume"].cuda()
 
     # Evidential part
     evidential_model = EvidentialModule(depth=args.numdepth).cuda()
     evidential_model.train()
 
-    std_dev = std_prob(probability_volume)
+
+
 
     outputs['evidential_prediction'] = evidential_model(probability_volume)
+
+
 
     if args.evidential:
         loss, depth_est, aleatoric, epistemic = loss_der(outputs, depth_gt, mask, depth_value)
@@ -279,10 +282,15 @@ def train_sample(sample, detailed_summary=False):
 
     loss.backward()
     optimizer.step()
+
+    alea_by_epis = divide_alea_epis(evidential_outputs)
+    std_dev = std_prob(probability_volume)
+
     scalar_outputs = {"loss": loss}
     image_outputs = {"depth_est": depth_est * mask, "depth_gt": sample["depth"],
                      "ref_img": sample["imgs"][:, 0],
                      "std_dev": std_dev,
+                     "alea_by_epis": alea_by_epis,
                      "ref_img_original": sample["imgs_original"][:, 0],
                      "mask": sample["mask"]}
     image_outputs["errormap"] = (depth_est - depth_gt).abs() * mask

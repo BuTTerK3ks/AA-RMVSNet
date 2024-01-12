@@ -17,3 +17,7 @@ def std_prob(prob_volume):
     std_dev = torch.std(centered_tensor, dim=1)
 
     return std_dev
+
+def divide_alea_epis(evidential_outputs):
+    division = evidential_outputs["aleatoric"]/evidential_outputs["epistemic"]
+    return division
