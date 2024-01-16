@@ -270,12 +270,12 @@ def train_sample(sample, detailed_summary=False):
 
     outputs['evidential_prediction'] = evidential_model(probability_volume)
 
-
-
+    alea_by_epis = []
     if args.evidential:
         loss, depth_est, aleatoric, epistemic = loss_der(outputs, depth_gt, mask, depth_value)
         evidential_outputs = {"aleatoric": aleatoric,
                               "epistemic": epistemic}
+        alea_by_epis = divide_alea_epis(evidential_outputs)
     else:
         loss, depth_est = mvsnet_cls_loss(outputs['probability_volume'], depth_gt, mask, depth_value)
         evidential_outputs = {}
@@ -283,7 +283,7 @@ def train_sample(sample, detailed_summary=False):
     loss.backward()
     optimizer.step()
 
-    alea_by_epis = divide_alea_epis(evidential_outputs)
+
     std_dev = std_prob(probability_volume)
 
     scalar_outputs = {"loss": loss}
