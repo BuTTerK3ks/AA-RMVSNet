@@ -12,15 +12,32 @@ def denormalize_target(normalized_target, target_min, target_max):
 
 
 class EvidentialModule(nn.Module):
-    def __init__(self):
+    def __init__(self, depth):
         super(EvidentialModule, self).__init__()
+        # one layer
+        # nu, alpha, beta
+        # First convolutional layer
+        self.conv1 = nn.Conv2d(depth, 256, kernel_size=3, stride=1, padding=1)
+        self.relu1 = nn.ELU()
 
-        # gamma, nu, alpha, beta
-        self.convolution = nn.Sequential(nn.Conv2d(100, 4, kernel_size=1, stride=1, padding=0),
-                                         nn.BatchNorm2d(4))
+        # Second convolutional layer
+        self.conv2 = nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1)
+        self.relu2 = nn.ELU()
 
-    def forward(self, x):
-        x = self.convolution(x)
+        # Third convolutional layer
+        self.conv3 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1)
+        self.relu3 = nn.ELU()
+
+        # Final layer to bring the channel size to 3
+        self.conv4 = nn.Conv2d(256, 3, kernel_size=1, stride=1, padding=0)
+
+    def forward(self, probability_volume):
+        #y = self.convolution(probability_volume)
+
+        x = self.relu1(self.conv1(probability_volume))
+        x = self.relu2(self.conv2(x))
+        x = self.relu3(self.conv3(x))
+        x = self.conv4(x)
 
         y = torch.zeros_like(x)
         y[:, 0, :, :] = x[:, 0, :, :]
