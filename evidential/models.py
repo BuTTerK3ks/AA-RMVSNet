@@ -12,12 +12,12 @@ def denormalize_target(normalized_target, target_min, target_max):
 
 
 class EvidentialModule(nn.Module):
-    def __init__(self, depth):
+    def __init__(self):
         super(EvidentialModule, self).__init__()
         # one layer
         # nu, alpha, beta
         # First convolutional layer
-        self.conv1 = nn.Conv2d(depth, 256, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(100, 256, kernel_size=3, stride=1, padding=1)
         self.relu1 = nn.ELU()
 
         # Second convolutional layer
@@ -29,7 +29,7 @@ class EvidentialModule(nn.Module):
         self.relu3 = nn.ELU()
 
         # Final layer to bring the channel size to 3
-        self.conv4 = nn.Conv2d(256, 3, kernel_size=1, stride=1, padding=0)
+        self.conv4 = nn.Conv2d(256, 4, kernel_size=1, stride=1, padding=0)
 
     def forward(self, probability_volume):
         #y = self.convolution(probability_volume)
@@ -57,10 +57,9 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01, use_mask=True):
     gamma, nu, alpha, beta = evidential_prediction[:, 0, :, :], evidential_prediction[:, 1, :, :], evidential_prediction[:, 2, :, :], evidential_prediction[:, 3, :, :]
 
     # map gamma [0,1] to depth range
-    t_min = torch.min(depth_value.flatten())
-    t_max = torch.max(depth_value.flatten())
     depth_map = denormalize_target(gamma, torch.min(depth_value.flatten()), torch.max(depth_value.flatten())) * mask
     error = depth_map - depth_gt
+    #error = normalize_target(error, torch.min(error.flatten()), torch.max(error.flatten()))
 
     omega = 2.0 * beta * (1.0 + nu)
 
