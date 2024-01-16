@@ -349,7 +349,7 @@ def mvsnet_cls_loss(prob_volume, depth_gt, mask, depth_value, return_prob_map=Fa
     # print('shape:', gt_index_volume.shape, )
     # cross entropy image (B x D X H x W)
     cross_entropy_image = -torch.sum(gt_index_volume * torch.log(prob_volume), dim=1).squeeze(1) # B, 1, H, W
-    #print('cross_entropy_image', cross_entropy_image)
+    # print('cross_entropy_image', cross_entropy_image)
     # masked cross entropy loss
     masked_cross_entropy_image = torch.mul(mask_true, cross_entropy_image) # valid pixel
     masked_cross_entropy = torch.sum(masked_cross_entropy_image, dim=[1, 2])

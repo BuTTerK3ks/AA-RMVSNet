@@ -64,7 +64,7 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     probability_volume = outputs['probability_volume']
 
     # take max probability and get depth
-    probability_map = torch.argmax(probability_volume, dim=1).type(torch.long)
+    probability_map = torch.argmax(torch.log(probability_volume), dim=1).type(torch.long)
     depth_map = torch.take(depth_value, probability_map)
 
     nu, alpha, beta = evidential_prediction[:, 0, :, :], evidential_prediction[:, 1, :, :], evidential_prediction[:, 2, :, :]
@@ -75,12 +75,16 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     error = depth_map_normalized - depth_gt_normalized
 
     error = depth_map - depth_gt
-    #error = normalize_target(error, torch.min(error.flatten()), torch.max(error.flatten()))
+    error = normalize_target(error, torch.min(error.flatten()), torch.max(error.flatten()))
 
     omega = 2.0 * beta * (1.0 + nu)
-
+    # Formula 8 from Deep Evidential Regression Paper
     calculated_loss = 0.5 * torch.log(math.pi / nu) - alpha * torch.log(omega) + (alpha + 0.5) * torch.log(error ** 2 * nu + omega) + torch.lgamma(alpha) - torch.lgamma(alpha + 0.5) + coeff * torch.abs(error) * (2.0 * nu + alpha)
     #TODO Check if masked loss is right
+    #TODO optimize coeff
+
+
+
     masked_loss = calculated_loss * mask
     valid_pixel_num = torch.sum(mask, dim=[1, 2]) + 1e-6
     loss = torch.sum(masked_loss / valid_pixel_num)
@@ -88,5 +92,6 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     aleatoric = torch.sqrt(beta * (nu + 1) / nu / alpha)
     epistemic = 1. / torch.sqrt(nu)
 
-    return loss, depth_map, aleatoric, epistemic
+
+    return masked_loss, depth_map, aleatoric, epistemic
 
