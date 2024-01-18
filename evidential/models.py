@@ -56,9 +56,12 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01, use_mask=True):
 
     gamma, nu, alpha, beta = evidential_prediction[:, 0, :, :], evidential_prediction[:, 1, :, :], evidential_prediction[:, 2, :, :], evidential_prediction[:, 3, :, :]
 
-    # map gamma [0,1] to depth range
-    depth_map = denormalize_target(gamma, torch.min(depth_value.flatten()), torch.max(depth_value.flatten())) * mask
-    error = depth_map - depth_gt
+    # take max probability and get depth
+    probability_map = torch.argmax(probability_volume, dim=1).type(torch.long)
+    depth_map = torch.take(depth_value, probability_map)
+
+
+    error = (depth_map - depth_gt) * mask
     #error = normalize_target(error, torch.min(error.flatten()), torch.max(error.flatten()))
 
     omega = 2.0 * beta * (1.0 + nu)
