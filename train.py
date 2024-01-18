@@ -257,8 +257,8 @@ def train_sample(sample, detailed_summary=False):
     mask = sample_cuda["mask"]
     depth_interval = sample_cuda["depth_interval"]
     depth_value = sample_cuda["depth_values"]
-    #with torch.no_grad():
-    outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
+    with torch.no_grad():
+        outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
     probability_volume = outputs["probability_volume"].cuda()
 
     # Evidential part
