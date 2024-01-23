@@ -116,7 +116,7 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     # mask loss and weight regarding the effective amount of valid pixels
     masked_loss = calculated_loss * mask
     valid_pixel_num = torch.sum(mask, dim=[1, 2]) + 1e-6
-    loss = torch.sum(masked_loss / valid_pixel_num)
+    loss = torch.sum(masked_loss)/valid_pixel_num
 
     # get aleatoric and epistemic uncertainty
     aleatoric = torch.sqrt(beta * (nu + 1) / nu / alpha)
