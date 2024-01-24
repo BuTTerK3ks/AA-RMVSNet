@@ -111,7 +111,7 @@ class UNetConvLSTM(nn.Module):
             bias=self.bias,
             output_padding=1
             )
-        self.conv_0 = nn.Conv2d(8, 1, 3, 1, padding=1)
+        self.conv_0 = nn.Conv2d(8, 4, 3, 1, padding=1)
 
     def forward(self, input_tensor, hidden_state=None, idx = 0, process_sq=True):
         """
