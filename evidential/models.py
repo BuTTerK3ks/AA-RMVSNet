@@ -95,15 +95,19 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     probability_volume = outputs['probability_volume']
 
     # take max probability and get depth
-    probability_map = torch.argmax(probability_volume, dim=1).type(torch.long)
-    depth_map = torch.take(depth_value, probability_map)
+
+    # take max probability and get depth
+    highest_prob = torch.argmax(probability_volume, dim=1).type(torch.long)
+
+    depth_map = torch.take(depth_value, highest_prob)
+
 
     # get EDL parameters
     nu, alpha, beta = evidential_prediction[:, 0, :, :], evidential_prediction[:, 1, :, :], evidential_prediction[:, 2, :, :]
 
     torch.set_printoptions(profile="full")
 
-    error = (depth_map - depth_gt) * mask
+    error = depth_map - depth_gt
     #error = normalize_target(error, torch.min(error.flatten()), torch.max(error.flatten()))
 
     omega = 2.0 * beta * (1.0 + nu)
