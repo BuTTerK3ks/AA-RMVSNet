@@ -75,8 +75,9 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01, use_mask=True):
     omega = 2.0 * beta * (1.0 + nu)
 
     loss = 0.5 * torch.log(math.pi / nu) - alpha * torch.log(omega) + (alpha + 0.5) * torch.log(error ** 2 * nu + omega) + torch.lgamma(alpha) - torch.lgamma(alpha + 0.5) + coeff * torch.abs(error) * (2.0 * nu + alpha)
+    loss = loss * mask
     valid_pixel_num = torch.sum(mask, dim=[1, 2]) + 1e-6
-    loss = torch.sum(loss / valid_pixel_num)
+    loss = torch.sum(loss) / valid_pixel_num
     
 
     '''
