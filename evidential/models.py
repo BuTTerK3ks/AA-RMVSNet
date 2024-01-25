@@ -14,14 +14,22 @@ class EvidentialModule(nn.Module):
     def __init__(self):
         super(EvidentialModule, self).__init__()
 
-        # nu, alpha, beta
-        self.convolution = nn.Conv2d(100, 3, kernel_size=1, stride=1, padding=0)
+        self.conv1 = nn.Conv3d(1, 16, kernel_size=(3, 3, 3), padding=(1, 1, 1))
+        self.bn1 = nn.BatchNorm3d(16)
+        self.relu = nn.ReLU()
+        # Add more layers as needed...
+        self.conv2 = nn.Conv3d(16, 4, kernel_size=(3, 3, 3), padding=(1, 1, 1))
 
     def forward(self, probability_volume):
-        y = self.convolution(probability_volume)
+        x = probability_volume
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        # Forward through additional layers...
+        x = self.conv2(x)
 
-        z = torch.zeros_like(y)
-        z = F.softplus(y)
+        z = torch.zeros_like(x)
+        z = F.softplus(x)
         # Add +1 to alpha channel
         x = torch.zeros_like(z)
         x[:, 0, :, :] = z[:, 0, :, :]
