@@ -4,24 +4,10 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-def normalize_target(target, target_min, target_max):
-    return (target - target_min) / (target_max - target_min)
-
-def denormalize_target(normalized_target, target_min, target_max):
-    return normalized_target * (target_max - target_min) + target_min
-
-def map_to_0_1(tensor, min_value, max_value):
-    mapped_tensor = (tensor - min_value) / (max_value - min_value)
-    return mapped_tensor
-
-def map_to_original_range_0_1(mapped_tensor, min_value, max_value):
-    original_tensor = mapped_tensor * (max_value - min_value) + min_value
-    return original_tensor
-
-
 class EvidentialModule(nn.Module):
     def __init__(self, depth):
         super(EvidentialModule, self).__init__()
+        '''
         # one layer
         # nu, alpha, beta
         # First convolutional layer
@@ -49,19 +35,62 @@ class EvidentialModule(nn.Module):
             nn.ReLU(),
             nn.Linear(256, 3),
         )
+        '''
+
+        # Initial Convolution Layer
+        self.conv1 = nn.Conv3d(1, 16, kernel_size=(3, 3, 3), padding=(1, 1, 1))
+        self.bn1 = nn.BatchNorm3d(16)
+        self.relu = nn.ReLU()
+
+        # Additional Convolution Layers
+        self.conv2 = nn.Conv3d(16, 32, kernel_size=(3, 3, 3), padding=(1, 1, 1))
+        self.bn2 = nn.BatchNorm3d(32)
+
+        self.conv3 = nn.Conv3d(32, 64, kernel_size=(3, 3, 3), padding=(1, 1, 1))
+        self.bn3 = nn.BatchNorm3d(64)
+
+        # Reduce depth and adjust channels
+        self.conv_depth_reduction = nn.Conv3d(64, 4, kernel_size=(100, 1, 1), stride=1)
+        self.bn = nn.BatchNorm3d(4)
+
+    def forward(self, x):
+        # Assuming x is the input tensor with shape [Batch, Channels, Depth, Height, Width]
+        # Ensure input tensor has 5 dimensions, with the second dimension being 1 (for single-channel input)
+
+        # enable anomaly detection
+        torch.autograd.set_detect_anomaly(True)
+
+        x = x.unsqueeze(1)  # Add channel dimension if not present
+        # batch size, chanel, depth, height, width
+
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu(x)
+
+        x = self.conv3(x)
+        x = self.bn3(x)
+        x = self.relu(x)
+
+        x = self.conv_depth_reduction(x)
+        x = self.bn(x)
+        x = self.relu(x)
+
+        x = torch.squeeze(x, dim=0)
+        x = torch.squeeze(x, dim=1)
 
 
-    def forward(self, probability_volume):
-        #y = self.convolution(probability_volume)
 
-        x = probability_volume
-
+        '''
         # Use cascade of Convolutional and ELU layers
         x = self.relu1(self.conv1(x))
         x = self.relu2(self.conv2(x))
         x = self.relu3(self.conv3(x))
         x = self.conv4(x)
-
+        '''
 
         '''
         # Use fully connected layer
@@ -75,18 +104,17 @@ class EvidentialModule(nn.Module):
         x = self.linear(x)
         '''
 
-        z = F.softplus(x)
+        # Apply sigmoid to the first channel
+        first_channel_sigmoid = torch.sigmoid(x[0:1, :, :])  # Keeps the tensor 3D
 
-        # Add +1 to alpha channel
-        x = torch.zeros_like(z)
-        # nu
-        x[:, 0, :, :] = z[:, 0, :, :]
-        # alpha
-        x[:, 1, :, :] = torch.add(z[:, 1, :, :], 1)
-        # beta
-        x[:, 2, :, :] = z[:, 2, :, :]
+        x_softplus = F.softplus(x)
 
-        return x
+        x_modified = torch.cat((first_channel_sigmoid, x_softplus[1:, :, :]), dim=0)
+        y = x_modified.clone()
+
+        y[2, :, :] += 1  # Modify the copy
+
+        return y
 
 
 def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
@@ -94,21 +122,26 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     evidential_prediction = outputs['evidential_prediction']
     probability_volume = outputs['probability_volume']
 
-    # take max probability and get depth
-
-    # take max probability and get depth
-    highest_prob = torch.argmax(probability_volume, dim=1).type(torch.long)
-
-    depth_map = torch.take(depth_value, highest_prob)
-
-
     # get EDL parameters
-    nu, alpha, beta = evidential_prediction[:, 0, :, :], evidential_prediction[:, 1, :, :], evidential_prediction[:, 2, :, :]
+    gamma, nu, alpha, beta = evidential_prediction[0, :, :], evidential_prediction[1, :, :], evidential_prediction[2, :, :], evidential_prediction[3, :, :]
+    gamma = torch.unsqueeze(gamma, 0)
+    nu = torch.unsqueeze(nu, 0)
+    alpha = torch.unsqueeze(alpha, 0)
+    beta = torch.unsqueeze(beta, 0)
+
+
+    #highest_prob = torch.argmax(gamma, dim=1).type(torch.long)
+    #depth_map = torch.take(depth_value, highest_prob)
+    depth = depth_value.size(1)
+    indices = (gamma * (depth - 1)).long()
+    #selected_depth_values = torch.gather(depth_value, 1, indices.expand(-1, 1, -1, -1))
+    selected_depth_values = torch.take(depth_value, indices)
+
+    depth_map = selected_depth_values
 
     torch.set_printoptions(profile="full")
 
     error = depth_map - depth_gt
-    #error = normalize_target(error, torch.min(error.flatten()), torch.max(error.flatten()))
 
     omega = 2.0 * beta * (1.0 + nu)
     # Formula 8 from Deep Evidential Regression Paper
