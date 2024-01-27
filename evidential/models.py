@@ -8,101 +8,118 @@ class EvidentialModule(nn.Module):
     def __init__(self, depth):
         super(EvidentialModule, self).__init__()
         '''
-        # one layer
-        # nu, alpha, beta
-        # First convolutional layer
-        self.conv1 = nn.Conv2d(depth, 256, kernel_size=3, stride=1, padding=1)
-        self.relu1 = nn.ELU()
+        # Layout 3D
+        #_______________________________________________________________________________________________
 
-        # Second convolutional layer
-        self.conv2 = nn.Conv2d(256, 128, kernel_size=5, stride=1, padding=2)
-        self.relu2 = nn.ELU()
+        # Initial 3D Convolution Layer to process depth
+        self.conv3d1 = nn.Conv3d(1, 16, kernel_size=(3, 3, 3), padding=(1, 1, 1))
+        self.bn3d1 = nn.BatchNorm3d(16)
+        self.relu = nn.ReLU(inplace=True)
 
-        # Third convolutional layer
-        self.conv3 = nn.Conv2d(128, 256, kernel_size=9, stride=1, padding=4)
-        self.relu3 = nn.ELU()
+        # Convert 3D feature maps to 2D
+        self.conv3d_to_2d = nn.Conv3d(16, 16, kernel_size=(100, 1, 1), stride=(100, 1, 1))
 
-        # Final layer to bring the channel size to 3
-        self.conv4 = nn.Conv2d(256, 3, kernel_size=1, stride=1, padding=0)
+        # 2D Convolution Layers to process spatial information
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(32)
 
-        # 1D Conv layer
-        self.conv1d = nn.Conv1d(in_channels=100, out_channels=3, kernel_size=1)
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(64)
 
-        self.linear = nn.Sequential(
-            nn.Linear(100, 128),
-            nn.ReLU(),
-            nn.Linear(128, 256),
-            nn.ReLU(),
-            nn.Linear(256, 3),
-        )
+        # Output layer for EDL parameters
+        self.edl_params = nn.Conv2d(64, 4, kernel_size=1)  # 4 channels for EDL parameters
+
+        # Layout 2D
+        #_______________________________________________________________________________________________
+        # Convolutional layers
+        self.conv1 = nn.Conv2d(100, 64, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.conv2 = nn.Conv2d(64, 32, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(32)
+        self.conv3 = nn.Conv2d(32, 16, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(16)
+        self.conv4 = nn.Conv2d(16, 8, kernel_size=3, padding=1)
+        self.bn4 = nn.BatchNorm2d(8)
+
+        # Output layer
+        self.output_layer = nn.Conv2d(8, 4, kernel_size=1)
         '''
+        # Layout Mixed
+        #_______________________________________________________________________________________________
+        self.conv3d1 = nn.Conv3d(1, 16, kernel_size=(5, 3, 3), padding=(2, 1, 1))
+        self.bn3d1 = nn.BatchNorm3d(16)
 
-        # Initial Convolution Layer
-        self.conv1 = nn.Conv3d(1, 16, kernel_size=(3, 3, 3), padding=(1, 1, 1))
-        self.bn1 = nn.BatchNorm3d(16)
-        self.relu = nn.ReLU()
+        # Transition from 3D to 2D, we'll use a 1x1x1 conv to reduce the depth dimension without losing spatial dimensions
+        self.conv3d_to_2d = nn.Conv3d(16, 4, kernel_size=(100, 1, 1))
 
-        # Additional Convolution Layers
-        self.conv2 = nn.Conv3d(16, 32, kernel_size=(3, 3, 3), padding=(1, 1, 1))
-        self.bn2 = nn.BatchNorm3d(32)
+        # 2D convolutional layers to process the spatial information
+        self.conv2d1 = nn.Conv2d(4, 16, kernel_size=3, padding=1)
+        self.bn2d1 = nn.BatchNorm2d(16)
+        self.conv2d2 = nn.Conv2d(16, 8, kernel_size=3, padding=1)
+        self.bn2d2 = nn.BatchNorm2d(8)
 
-        self.conv3 = nn.Conv3d(32, 64, kernel_size=(3, 3, 3), padding=(1, 1, 1))
-        self.bn3 = nn.BatchNorm3d(64)
+        # Output layer to produce 4 EDL parameters per pixel
+        self.output_layer = nn.Conv2d(8, 4, kernel_size=1)
 
-        # Reduce depth and adjust channels
-        self.conv_depth_reduction = nn.Conv3d(64, 4, kernel_size=(100, 1, 1), stride=1)
-        self.bn = nn.BatchNorm3d(4)
 
     def forward(self, x):
-        # Assuming x is the input tensor with shape [Batch, Channels, Depth, Height, Width]
-        # Ensure input tensor has 5 dimensions, with the second dimension being 1 (for single-channel input)
-
-        # enable anomaly detection
-        torch.autograd.set_detect_anomaly(True)
+        # Layout 3D
+        #_______________________________________________________________________________________________
+        '''
 
         x = x.unsqueeze(1)  # Add channel dimension if not present
         # batch size, chanel, depth, height, width
 
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
+        # Existing conv layers
+        # 3D Convolution to process depth
+        x = self.relu(self.bn3d1(self.conv3d1(x)))
 
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = self.relu(x)
+        # Convert 3D feature maps to 2D by collapsing the depth dimension
+        x = self.conv3d_to_2d(x)
+        x = torch.squeeze(x, 2)  # Remove the depth dimension
 
-        x = self.conv3(x)
-        x = self.bn3(x)
-        x = self.relu(x)
+        # 2D Convolution Layers
+        x = self.relu(self.bn2(self.conv2(x)))
+        x = self.relu(self.bn3(self.conv3(x)))
 
-        x = self.conv_depth_reduction(x)
-        x = self.bn(x)
-        x = self.relu(x)
+        # Output EDL parameters
+        x = self.edl_params(x)  # Output shape: [batch_size, 4, 128, 160]
+
+
+        # Layout 2D
+        #_______________________________________________________________________________________________
+        # Apply convolutional layers with ReLU and batch normalization
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.relu(self.bn3(self.conv3(x)))
+        x = F.relu(self.bn4(self.conv4(x)))
+
+        # Output layer to get 4 EDL parameters per pixel
+        x = self.output_layer(x)
+        '''
+        # Layout Mixed
+        #_______________________________________________________________________________________________
+        # Add a channel dimension for 3D convolution (N, C, D, H, W)
+        x = x.unsqueeze(1)
+
+        # Apply 3D convolution and batch normalization
+        x = F.relu(self.bn3d1(self.conv3d1(x)))
+
+        # Transition from 3D to 2D by reducing depth to 4
+        x = self.conv3d_to_2d(x)
+        # Remove the depth dimension, results in (N, C, H, W)
+        x = x.squeeze(2)
+
+        # Apply 2D convolutions and batch normalization
+        x = F.relu(self.bn2d1(self.conv2d1(x)))
+        x = F.relu(self.bn2d2(self.conv2d2(x)))
+
+        # Output layer to get 4 EDL parameters per pixel
+        x = self.output_layer(x)
+
 
         x = torch.squeeze(x, dim=0)
-        x = torch.squeeze(x, dim=1)
-
-
-
-        '''
-        # Use cascade of Convolutional and ELU layers
-        x = self.relu1(self.conv1(x))
-        x = self.relu2(self.conv2(x))
-        x = self.relu3(self.conv3(x))
-        x = self.conv4(x)
-        '''
-
-        '''
-        # Use fully connected layer
-        x = x.view(1, 128*160, 100).transpose(1, 2)
-        x = self.conv1d(x)
-        x = x.transpose(1, 2).reshape(1, 3, 128, 160)
-        '''
-
-        '''
-        # Use linear layer
-        x = self.linear(x)
-        '''
+        #x = torch.squeeze(x, dim=1)
 
         # Apply sigmoid to the first channel
         first_channel_sigmoid = torch.sigmoid(x[0:1, :, :])  # Keeps the tensor 3D
