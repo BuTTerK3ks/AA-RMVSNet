@@ -274,7 +274,8 @@ class AARMVSNet(nn.Module):
 
             # Get evidential prediction
 
-            probability_volume = F.softmax(prob_volume, dim=1)  # get prob volume use for recurrent to decrease memory consumption
+            #probability_volume = F.softmax(prob_volume, dim=1)  # get prob volume use for recurrent to decrease memory consumption
+            probability_volume = prob_volume
 
             return {
                     'probability_volume': probability_volume
