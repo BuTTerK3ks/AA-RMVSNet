@@ -1,6 +1,8 @@
 import torch
 import math
+import numpy as np
 import torch.nn as nn
+from torch import Tensor
 import torch.optim as optim
 import torch.nn.functional as F
 
@@ -192,6 +194,7 @@ class EvidentialModule(nn.Module):
         '''
         # ELFNet inspired
         #_______________________________________________________________________________________________
+        self.maxdisp = 100
 
         self.dres0 = nn.Sequential(convbn_3d(1, 32, 3, 1, 1),
                                    Mish(),
@@ -207,6 +210,15 @@ class EvidentialModule(nn.Module):
         self.classif0 = nn.Sequential(convbn_3d(32, 32, 3, 1, 1),
                                       Mish(),
                                       nn.Conv3d(32, 4, kernel_size=3, padding=1, stride=1, bias=False))
+    def get_uncertainty(self, logv, logalpha, logbeta):
+        v = self.evidence(logv)
+        alpha = self.evidence(logalpha) + 1
+        beta = self.evidence(logbeta)
+        return v, alpha, beta
+
+    def evidence(self, x):
+        # return tf.exp(x)
+        return F.softplus(x)
 
     def forward(self, input):
         # Add a channel dimension for 3D convolution (N, C, D, H, W)
@@ -280,13 +292,11 @@ class EvidentialModule(nn.Module):
         # _______________________________________________________________________________________________
 
         cost0 = self.dres0(x)
-        #cost0 = self.dres1(cost0) + cost0
+        cost0 = self.dres1(cost0) + cost0
 
         out1 = self.dres2(cost0)
 
-        out1 = self.classif0(out1)
-
-        (cost0, logla0, logalpha0, logbeta0) = torch.split(self.classif0(cost0), 1, dim=1)
+        (cost0, logla0, logalpha0, logbeta0) = torch.split(self.classif0(out1), 1, dim=1)
 
         def get_pred(cost):
             cost_upsample = F.upsample(cost, [self.maxdisp, input.size()[2], input.size()[
@@ -311,43 +321,28 @@ class EvidentialModule(nn.Module):
             logla0, logalpha0, logbeta0)
 
         (u, la, alpha, beta) = pred0, la0, alpha0, beta0
+        evidential = torch.cat((u, la, alpha, beta))
 
-        u = torch.unsqueeze(u, 1)
-        refinenet_feature_left = features_left["finetune_feature"]
-        refinenet_feature_left = F.upsample(refinenet_feature_left, [left.size()[
-                                            2], left.size()[3]], mode='bilinear', align_corners=True)
-        refinenet_feature_right = features_right["finetune_feature"]
-        refinenet_feature_right = F.upsample(refinenet_feature_right, [left.size()[
-                                             2], left.size()[3]], mode='bilinear', align_corners=True)
-        refinenet_feature_right_warp = warp(refinenet_feature_right, u)
-        refinenet_costvolume = build_corrleation_volume(
-            refinenet_feature_left, refinenet_feature_right_warp, 24, 1)
-        refinenet_costvolume = torch.squeeze(refinenet_costvolume, 1)
-        feature = self.dispupsample(u)
-        refinenet_combine = torch.cat((refinenet_feature_left - refinenet_feature_right_warp,
-                                      refinenet_feature_left, feature, u, refinenet_costvolume), dim=1)
-        disp_finetune = self.refinenet3(refinenet_combine, u)
-        disp_finetune = torch.squeeze(disp_finetune, 1)
-        u = torch.squeeze(u, 1)
+        return evidential
+
+def criterion_uncertainty(u, la, alpha, beta, y, mask, weight_reg=0.1):
+    # our loss function
+    om = 2 * beta * (1 + la)
+    mask = mask.bool()
+    # len(u): size
+    loss = torch.sum(
+        (0.5 * torch.log(np.pi / la) - alpha * torch.log(om) +
+         (alpha + 0.5) * torch.log(la * (u - y) ** 2 + om) +
+         torch.lgamma(alpha) - torch.lgamma(alpha+0.5))[mask]
+    ) / torch.sum(mask == True)
+
+    lossr = weight_reg * (torch.sum((torch.abs(u - y) * (2 * la + alpha))
+                                         [mask])) / torch.sum(mask == True)
+    loss = loss + lossr
+    return loss
 
 
 
-        x = evidential
-        #x = torch.squeeze(x, dim=1)
-
-        # Apply sigmoid to the first channel
-        first_channel_sigmoid = torch.sigmoid(x[0:1, :, :])  # Keeps the tensor 3D
-
-        x_softplus = F.softplus(x)
-
-        x_modified = torch.cat((first_channel_sigmoid, x_softplus[1:, :, :]), dim=0)
-        y = x_modified.clone()
-
-        y = torch.squeeze(y, dim=0)
-
-        y[2, :, :] += 1  # Modify the copy
-
-        return y
 
 
 def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
@@ -362,7 +357,9 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     alpha = torch.unsqueeze(alpha, 0)
     beta = torch.unsqueeze(beta, 0)
 
+    loss = criterion_uncertainty(gamma, nu, alpha, beta, depth_gt, mask, weight_reg=0.1)
 
+    '''
     #highest_prob = torch.argmax(gamma, dim=1).type(torch.long)
     #depth_map = torch.take(depth_value, highest_prob)
     depth = depth_value.size(1)
@@ -388,10 +385,13 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     valid_pixel_num = torch.sum(mask, dim=[1, 2]) + 1e-6
     loss = torch.sum(masked_loss)/valid_pixel_num
 
+    '''
     # get aleatoric and epistemic uncertainty
     aleatoric = torch.sqrt(beta * (nu + 1) / nu / alpha)
     epistemic = 1. / torch.sqrt(nu)
 
 
-    return loss, depth_map, aleatoric, epistemic
+
+
+    return loss, gamma, aleatoric, epistemic
 

@@ -265,9 +265,6 @@ def train_sample(sample, detailed_summary=False):
     evidential_model = EvidentialModule(depth=args.numdepth).cuda()
     evidential_model.train()
 
-
-
-
     outputs['evidential_prediction'] = evidential_model(probability_volume)
 
     alea_by_epis = []
@@ -300,6 +297,9 @@ def train_sample(sample, detailed_summary=False):
         scalar_outputs["thres2mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 2)
         scalar_outputs["thres4mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 4)
         scalar_outputs["thres8mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 8)
+
+    # clear cache
+    torch.cuda.empty_cache()
 
     return tensor2float(loss), tensor2float(scalar_outputs), image_outputs, evidential_outputs
 
