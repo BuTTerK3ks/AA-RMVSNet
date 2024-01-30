@@ -80,10 +80,10 @@ def FMish(x):
 
     return x * torch.tanh(F.softplus(x))
 
-def disparity_regression(x, maxdisp):
+def disparity_regression(x, depth_values, max_d=60):
     assert len(x.shape) == 4
-    disp_values = torch.arange(0, maxdisp, dtype=x.dtype, device=x.device)
-    disp_values = disp_values.view(1, maxdisp, 1, 1)
+    #disp_values = torch.arange(0, max_d, dtype=x.dtype, device=x.device)
+    disp_values = depth_values.view(depth_values, 1, 1)
     return torch.sum(x * disp_values, 1, keepdim=False)
 
 
@@ -194,7 +194,7 @@ class EvidentialModule(nn.Module):
         '''
         # ELFNet inspired
         #_______________________________________________________________________________________________
-        self.maxdisp = 100
+        self.maxdisp = 60
 
         self.dres0 = nn.Sequential(convbn_3d(1, 32, 3, 1, 1),
                                    Mish(),
@@ -220,7 +220,7 @@ class EvidentialModule(nn.Module):
         # return tf.exp(x)
         return F.softplus(x)
 
-    def forward(self, input):
+    def forward(self, input, depth_value):
         # Add a channel dimension for 3D convolution (N, C, D, H, W)
         x = input.unsqueeze(1)
 
@@ -298,13 +298,14 @@ class EvidentialModule(nn.Module):
 
         (cost0, logla0, logalpha0, logbeta0) = torch.split(self.classif0(out1), 1, dim=1)
 
-        def get_pred(cost):
+        def get_pred(cost, depth_value):
             cost_upsample = F.upsample(cost, [self.maxdisp, input.size()[2], input.size()[
                 3]], mode='trilinear', align_corners=True)
             cost_upsample = torch.squeeze(cost_upsample, 1)
             prob = F.softmax(cost_upsample, dim=1)
-            pred = disparity_regression(prob, self.maxdisp)
+            pred = disparity_regression(prob, depth_value)
             return pred, prob
+
 
         def get_logits(cost, prob):
             cost_upsample = F.upsample(cost, [self.maxdisp, input.size()[2], input.size()[
@@ -313,7 +314,7 @@ class EvidentialModule(nn.Module):
             pred = torch.sum(cost_upsample * prob, 1, keepdim=False)
             return pred
 
-        pred0, prob0 = get_pred(cost0)
+        pred0, prob0 = get_pred(cost0, depth_value)
         logla0 = get_logits(logla0, prob0)
         logalpha0 = get_logits(logalpha0, prob0)
         logbeta0 = get_logits(logbeta0, prob0)
@@ -329,6 +330,7 @@ def criterion_uncertainty(u, la, alpha, beta, y, mask, weight_reg=0.1):
     # our loss function
     om = 2 * beta * (1 + la)
     mask = mask.bool()
+
     # len(u): size
     loss = torch.sum(
         (0.5 * torch.log(np.pi / la) - alpha * torch.log(om) +
@@ -339,6 +341,11 @@ def criterion_uncertainty(u, la, alpha, beta, y, mask, weight_reg=0.1):
     lossr = weight_reg * (torch.sum((torch.abs(u - y) * (2 * la + alpha))
                                          [mask])) / torch.sum(mask == True)
     loss = loss + lossr
+
+    # TODO check why mask contains only 0
+    # Replace 'NaN' and 'Inf' values with 0
+    loss = torch.where(torch.isfinite(loss), loss, torch.tensor(0.0).cuda())
+
     return loss
 
 
@@ -393,5 +400,5 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
 
 
 
-    return loss, gamma, aleatoric, epistemic
+    return loss, depth_est, aleatoric, epistemic
 

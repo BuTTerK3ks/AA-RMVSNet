@@ -191,30 +191,31 @@ def train():
         #TODO Hier wird nur bis x trainiert
         for batch_idx, sample in enumerate(TrainImgLoader):
         #for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 100, 1)):
-            start_time = time.time()
-            global_step = len(TrainImgLoader) * epoch_idx + batch_idx
-            do_summary = global_step % args.summary_freq == 0
-            loss, scalar_outputs, image_outputs, evidential_outputs = train_sample(sample, detailed_summary=do_summary)
+            if torch.any(sample["mask"]):
+                start_time = time.time()
+                global_step = len(TrainImgLoader) * epoch_idx + batch_idx
+                do_summary = global_step % args.summary_freq == 0
+                loss, scalar_outputs, image_outputs, evidential_outputs = train_sample(sample, detailed_summary=do_summary)
 
 
 
 
-            for param_group in optimizer.param_groups:
-                lr = param_group['lr']
+                for param_group in optimizer.param_groups:
+                    lr = param_group['lr']
 
-            if batch_idx % args.save_freq_fig == 0:
-                save_errormap(image_outputs, evidential_outputs)
+                if batch_idx % args.save_freq_fig == 0:
+                    save_errormap(image_outputs, evidential_outputs)
 
 
-            if do_summary:
-                save_scalars(logger, 'train', scalar_outputs, global_step)
-                logger.add_scalar('train/lr', lr, global_step)
-                save_images(logger, 'train', image_outputs, global_step)
-            del scalar_outputs, image_outputs
-            print(
-                'Epoch {}/{}, Iter {}/{}, LR {}, train loss = {:.3f}, time = {:.3f}'.format(epoch_idx, args.epochs, batch_idx,
-                                                                                     len(TrainImgLoader), lr, loss,
-                                                                                     time.time() - start_time))
+                if do_summary:
+                    save_scalars(logger, 'train', scalar_outputs, global_step)
+                    logger.add_scalar('train/lr', lr, global_step)
+                    save_images(logger, 'train', image_outputs, global_step)
+                del scalar_outputs, image_outputs
+                print(
+                    'Epoch {}/{}, Iter {}/{}, LR {}, train loss = {:.3f}, time = {:.3f}'.format(epoch_idx, args.epochs, batch_idx,
+                                                                                         len(TrainImgLoader), lr, loss,
+                                                                                         time.time() - start_time))
 
         # checkpoint
         if (epoch_idx + 1) % args.save_freq_checkpoint == 0:
@@ -265,7 +266,7 @@ def train_sample(sample, detailed_summary=False):
     evidential_model = EvidentialModule(depth=args.numdepth).cuda()
     evidential_model.train()
 
-    outputs['evidential_prediction'] = evidential_model(probability_volume)
+    outputs['evidential_prediction'] = evidential_model(probability_volume, depth_value)
 
     alea_by_epis = []
     if args.evidential:
@@ -276,6 +277,7 @@ def train_sample(sample, detailed_summary=False):
     else:
         loss, depth_est = mvsnet_cls_loss(outputs['probability_volume'], depth_gt, mask, depth_value)
         evidential_outputs = {}
+
 
     loss.backward()
     optimizer.step()
