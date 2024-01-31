@@ -189,23 +189,19 @@ def train():
         print('Start Training')
         # training
         #TODO Hier wird nur bis x trainiert
-        for batch_idx, sample in enumerate(TrainImgLoader):
-        #for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 100, 1)):
+        #for batch_idx, sample in enumerate(TrainImgLoader):
+        for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 10, 1)):
             if torch.any(sample["mask"]):
                 start_time = time.time()
                 global_step = len(TrainImgLoader) * epoch_idx + batch_idx
                 do_summary = global_step % args.summary_freq == 0
                 loss, scalar_outputs, image_outputs, evidential_outputs = train_sample(sample, detailed_summary=do_summary)
 
-
-
-
                 for param_group in optimizer.param_groups:
                     lr = param_group['lr']
 
                 if batch_idx % args.save_freq_fig == 0:
                     save_errormap(image_outputs, evidential_outputs)
-
 
                 if do_summary:
                     save_scalars(logger, 'train', scalar_outputs, global_step)
@@ -239,12 +235,13 @@ def train():
             #del scalar_outputs, image_outputs
             del image_outputs
             
-            print('Epoch {}/{}, Iter {}/{}, test loss = {:.3f}, time = {:3f}, ame = {:3f}, thres2mm = {:3f}, thres4mm = {:3f}, thres8mm = {:3f}'.format(
+            print('Epoch {}/{}, Iter {}/{}, test loss = {:.3f}, time = {:3f}, ame = {:3f}, thres2mm = {:3f}, thres4mm = {:3f}, thres8mm = {:3f}, thres16mm = {:3f}, thres32mm = {:3f}'.format(
                                 epoch_idx, args.epochs, batch_idx,
                                 len(TestImgLoader), loss,
                                 time.time() - start_time,
                                 scalar_outputs["abs_depth_error"], scalar_outputs["thres2mm_error"], 
-                                scalar_outputs["thres4mm_error"], scalar_outputs["thres8mm_error"]))
+                                scalar_outputs["thres4mm_error"], scalar_outputs["thres8mm_error"],
+                                scalar_outputs["thres16mm_error"], scalar_outputs["thres32mm_error"]))
         save_scalars(logger, 'fulltest', avg_test_scalars.mean(), global_step)
         print("avg_test_scalars:", avg_test_scalars.mean())
 
@@ -258,15 +255,15 @@ def train_sample(sample, detailed_summary=False):
     mask = sample_cuda["mask"]
     depth_interval = sample_cuda["depth_interval"]
     depth_value = sample_cuda["depth_values"]
-    with torch.no_grad():
-        outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
+    #with torch.no_grad():
+    outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
     probability_volume = outputs["probability_volume"].cuda()
 
     # Evidential part
     evidential_model = EvidentialModule(depth=args.numdepth).cuda()
     evidential_model.train()
 
-    outputs['evidential_prediction'] = evidential_model(probability_volume, depth_value)
+    outputs['evidential_prediction'], probabilities = evidential_model(probability_volume, depth_value)
 
     alea_by_epis = []
     if args.evidential:
@@ -278,12 +275,10 @@ def train_sample(sample, detailed_summary=False):
         loss, depth_est = mvsnet_cls_loss(outputs['probability_volume'], depth_gt, mask, depth_value)
         evidential_outputs = {}
 
-
     loss.backward()
     optimizer.step()
 
-
-    std_dev = std_prob(probability_volume)
+    std_dev = std_prob(probabilities)
 
     scalar_outputs = {"loss": loss}
     image_outputs = {"depth_est": depth_est * mask, "depth_gt": sample["depth"],
@@ -293,12 +288,13 @@ def train_sample(sample, detailed_summary=False):
                      "ref_img_original": sample["imgs_original"][:, 0],
                      "mask": sample["mask"]}
     image_outputs["errormap"] = (depth_est - depth_gt).abs() * mask
-    #image_outputs["errormap"] = (depth_est - depth_gt).abs()
     if detailed_summary:
         scalar_outputs["abs_depth_error"] = AbsDepthError_metrics(depth_est, depth_gt, mask > 0.5)
         scalar_outputs["thres2mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 2)
         scalar_outputs["thres4mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 4)
         scalar_outputs["thres8mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 8)
+        scalar_outputs["thres16mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 16)
+        scalar_outputs["thres32mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 32)
 
     # clear cache
     torch.cuda.empty_cache()
@@ -334,6 +330,8 @@ def test_sample(sample, detailed_summary=True):
     scalar_outputs["thres2mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 2)
     scalar_outputs["thres4mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 4)
     scalar_outputs["thres8mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 8)
+    scalar_outputs["thres16mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 16)
+    scalar_outputs["thres32mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 32)
 
     return tensor2float(loss), tensor2float(scalar_outputs), image_outputs
 

@@ -82,9 +82,11 @@ def FMish(x):
 
 def disparity_regression(x, depth_values, max_d=60):
     assert len(x.shape) == 4
-    #disp_values = torch.arange(0, max_d, dtype=x.dtype, device=x.device)
-    disp_values = depth_values.view(depth_values, 1, 1)
+    disp_values = torch.arange(0, max_d, dtype=x.dtype, device=x.device)
+    depth_1 = depth_values.size()[1]
+    disp_values = depth_values.view(1, depth_values.size()[1], 1, 1)
     return torch.sum(x * disp_values, 1, keepdim=False)
+
 
 
 
@@ -194,7 +196,7 @@ class EvidentialModule(nn.Module):
         '''
         # ELFNet inspired
         #_______________________________________________________________________________________________
-        self.maxdisp = 60
+        self.maxdisp = 32
 
         self.dres0 = nn.Sequential(convbn_3d(1, 32, 3, 1, 1),
                                    Mish(),
@@ -294,7 +296,8 @@ class EvidentialModule(nn.Module):
         cost0 = self.dres0(x)
         cost0 = self.dres1(cost0) + cost0
 
-        out1 = self.dres2(cost0)
+        #out1 = self.dres2(cost0)
+        out1 = cost0
 
         (cost0, logla0, logalpha0, logbeta0) = torch.split(self.classif0(out1), 1, dim=1)
 
@@ -324,7 +327,7 @@ class EvidentialModule(nn.Module):
         (u, la, alpha, beta) = pred0, la0, alpha0, beta0
         evidential = torch.cat((u, la, alpha, beta))
 
-        return evidential
+        return evidential, prob0
 
 def criterion_uncertainty(u, la, alpha, beta, y, mask, weight_reg=0.1):
     # our loss function
@@ -400,5 +403,5 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
 
 
 
-    return loss, depth_est, aleatoric, epistemic
+    return loss, gamma, aleatoric, epistemic
 
