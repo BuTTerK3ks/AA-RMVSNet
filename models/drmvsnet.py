@@ -214,6 +214,19 @@ class UNetConvLSTM(nn.Module):
             param = [param] * num_layers
         return param
 
+class AARMVSNetWrapper(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.original_model = AARMVSNet(max_h=512, max_w=640).cuda()
+
+    def forward(self, x):
+        # Create dummy proj_matrices and depth_values with the expected shape and type
+        #x = x[0, :, :, :, :, :]
+        dummy_depth_values = torch.randn(1, 32).cuda()
+        dummy_proj_matrices = torch.randn(1, 5, 4, 4).cuda()
+        return self.original_model(x, proj_matrices=dummy_proj_matrices, depth_values=dummy_depth_values)
+
+
 class AARMVSNet(nn.Module):
     def __init__(self, image_scale=0.25, max_h=960, max_w=480, return_depth=False):
 

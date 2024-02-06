@@ -20,7 +20,9 @@ from datasets.data_io import *
 
 from evidential.models import *
 from evidential.save import *
-from evidential.statistics import *
+from statistics import *
+
+from torchsummary import summary
 
 cudnn.benchmark = True
 
@@ -120,6 +122,8 @@ TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_wor
 print('model: AA-RMVSNet')
 model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w)
 
+
+
 # Find total parameters and trainable parameters
 total_params = sum(p.numel() for p in model.parameters())
 print(f'{total_params:,} total parameters.')
@@ -127,24 +131,28 @@ total_trainable_params = sum(
     p.numel() for p in model.parameters() if p.requires_grad)
 print(f'{total_trainable_params:,} training parameters.')
 
-# load checkpoint file specified by args.loadckpt
-print("loading model {}".format(args.loadckpt))
 
-# Allow both keys xxx & module.xxx in dict
-state_dict = torch.load(args.loadckpt)
-if "module.feature.conv0_0.0.weight" in state_dict['model']:
-    print("With module in keys")
-    model = nn.DataParallel(model)
-    model.load_state_dict(state_dict['model'], True)
+if args.loadckpt:
 
-else:
-    print("No module in keys")
-    model.load_state_dict(state_dict['model'], True)
-    model = nn.DataParallel(model)
+    # load checkpoint file specified by args.loadckpt
+    print("loading model {}".format(args.loadckpt))
+
+    # Allow both keys xxx & module.xxx in dict
+    state_dict = torch.load(args.loadckpt)
+    if "module.feature.conv0_0.0.weight" in state_dict['model']:
+        print("With module in keys")
+        model = nn.DataParallel(model)
+        model.load_state_dict(state_dict['model'], True)
+
+    else:
+        print("No module in keys")
+        model.load_state_dict(state_dict['model'], True)
+        model = nn.DataParallel(model)
 
 
 model = model.cuda()
 model = nn.parallel.DataParallel(model)
+
 
 
 print('optimizer: Adam \n')
@@ -184,13 +192,14 @@ def train():
         
         print('Epoch {}/{}:'.format(epoch_idx, args.epochs))
 
-        lr_scheduler.step()
+
         global_step = len(TrainImgLoader) * epoch_idx
         print('Start Training')
         # training
         #TODO Hier wird nur bis x trainiert
-        #for batch_idx, sample in enumerate(TrainImgLoader):
-        for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 10, 1)):
+        for batch_idx, sample in enumerate(TrainImgLoader):
+        #for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 10, 1)):
+        # TODO check why some images have mask 0
             if torch.any(sample["mask"]):
                 start_time = time.time()
                 global_step = len(TrainImgLoader) * epoch_idx + batch_idx
@@ -212,7 +221,7 @@ def train():
                     'Epoch {}/{}, Iter {}/{}, LR {}, train loss = {:.3f}, time = {:.3f}'.format(epoch_idx, args.epochs, batch_idx,
                                                                                          len(TrainImgLoader), lr, loss,
                                                                                          time.time() - start_time))
-
+        lr_scheduler.step()
         # checkpoint
         if (epoch_idx + 1) % args.save_freq_checkpoint == 0:
             torch.save({
@@ -257,6 +266,11 @@ def train_sample(sample, detailed_summary=False):
     depth_value = sample_cuda["depth_values"]
     #with torch.no_grad():
     outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
+
+    #dummy_model = ModelWrapper().cuda()
+    #summary(dummy_model, input_size=(32, 128, 160))
+
+
     probability_volume = outputs["probability_volume"].cuda()
 
     # Evidential part

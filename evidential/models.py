@@ -6,53 +6,6 @@ from torch import Tensor
 import torch.optim as optim
 import torch.nn.functional as F
 
-class ConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, padding=1):
-        super(ConvBlock, self).__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding)
-        self.bn = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU(inplace=True)
-
-    def forward(self, x):
-        x = self.conv(x)
-        x = self.bn(x)
-        return self.relu(x)
-
-class SEBlock(nn.Module):
-    def __init__(self, channel, reduction=16):
-        super(SEBlock, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.Sequential(
-            nn.Linear(channel, channel // reduction, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Linear(channel // reduction, channel, bias=False),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        b, c, _, _ = x.size()
-        y = self.avg_pool(x).view(b, c)
-        y = self.fc(y).view(b, c, 1, 1)
-        return x * y.expand_as(x)
-
-class EDLNet(nn.Module):
-    def __init__(self):
-        super(EDLNet, self).__init__()
-        # Define initial convolutions, SEBlocks, and other necessary layers
-        self.conv1 = ConvBlock(1, 64)
-        self.se1 = SEBlock(64)
-        # Continue defining layers, including downsample and upsample paths for U-Net structure
-        # Final layers for EDL parameter estimation
-        self.final_conv = nn.Conv2d(64, 4, kernel_size=1)  # Adjust the input channels accordingly
-
-    def forward(self, x):
-        # Forward pass through the network, incorporating attention and multi-scale features
-        x = self.conv1(x)
-        x = self.se1(x)
-        # Continue forward pass, combining features from different scales
-        x = self.final_conv(x)
-        return x
-
 def convbn_3d(in_channels, out_channels, kernel_size, stride, pad):
     return nn.Sequential(nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size, stride=stride,
                                    padding=pad, bias=False),
@@ -132,6 +85,17 @@ class hourglass(nn.Module):
         conv6 = FMish(self.conv6(conv5) + self.redir1(x))
 
         return conv6
+
+class EvidentialWrapper(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.original_model = EvidentialModule(depth=32).cuda()
+
+    def forward(self, x):
+        # Create dummy proj_matrices and depth_values with the expected shape and type
+        dummy_depth_values = torch.randn(1, 32).cuda()  # Adjust the shape and values as needed
+        return self.original_model(x, dummy_depth_values)
+
 
 
 class EvidentialModule(nn.Module):
@@ -296,14 +260,14 @@ class EvidentialModule(nn.Module):
         cost0 = self.dres0(x)
         cost0 = self.dres1(cost0) + cost0
 
-        #out1 = self.dres2(cost0)
-        out1 = cost0
+        out1 = self.dres2(cost0)
+        #out1 = cost0
 
         (cost0, logla0, logalpha0, logbeta0) = torch.split(self.classif0(out1), 1, dim=1)
 
         def get_pred(cost, depth_value):
-            cost_upsample = F.upsample(cost, [self.maxdisp, input.size()[2], input.size()[
-                3]], mode='trilinear', align_corners=True)
+            cost_upsample = F.interpolate(cost, [self.maxdisp, input.size()[2], input.size()[
+                3]], mode='trilinear', align_corners=False)
             cost_upsample = torch.squeeze(cost_upsample, 1)
             prob = F.softmax(cost_upsample, dim=1)
             pred = disparity_regression(prob, depth_value)
@@ -311,8 +275,8 @@ class EvidentialModule(nn.Module):
 
 
         def get_logits(cost, prob):
-            cost_upsample = F.upsample(cost, [self.maxdisp, input.size()[2], input.size()[
-                3]], mode='trilinear', align_corners=True)
+            cost_upsample = F.interpolate(cost, [self.maxdisp, input.size()[2], input.size()[
+                3]], mode='trilinear', align_corners=False)
             cost_upsample = torch.squeeze(cost_upsample, 1)
             pred = torch.sum(cost_upsample * prob, 1, keepdim=False)
             return pred
