@@ -290,9 +290,8 @@ class AARMVSNet(nn.Module):
             #probability_volume = F.softmax(prob_volume, dim=1)  # get prob volume use for recurrent to decrease memory consumption
             probability_volume = prob_volume
 
-            return {
-                    'probability_volume': probability_volume
-                    }
+            return probability_volume
+
 
         #TODO include evidential - both simultaniously
         else: #Test phase

@@ -1,10 +1,10 @@
 import torch
 from evidential.models import *
 from evidential.save import *
-from tensorboardX import SummaryWriter
-from torchsummary import summary
 from models import *
+
 from torchviz import make_dot
+
 
 
 
@@ -19,29 +19,33 @@ def divide_alea_epis(evidential_outputs):
     division = evidential_outputs["aleatoric"]/evidential_outputs["epistemic"]
     return division
 
-def model_structure():
-    dummy_aarmvsnet_model = AARMVSNetWrapper().cuda()
-    summary(dummy_aarmvsnet_model, input_size=(5, 3, 128, 160))
-
-    dummy_evidential_model = EvidentialWrapper().cuda()
-    summary(dummy_evidential_model, input_size=(32, 128, 160))
-    torch.cuda.empty_cache()  # Clear the CUDA cache
-
-if __name__ == "__main__":
-
+def visualize_torchviz():
     dummy_evidential_model = EvidentialWrapper().cuda()
     dummy_aarmvsnet_model = AARMVSNetWrapper().cuda()
-
-
-    dummy_input = torch.randn(1, 5, 3, 128, 160).cuda()
-    output = dummy_aarmvsnet_model(dummy_input)
-    output = output["probability_volume"]
-    dot = make_dot(output.mean(), params=dict(dummy_evidential_model.named_parameters()))
-    dot.render("/home/grannemann/Downloads/dummy_aarmvsnet_model", format="png")
-
 
     dummy_input = torch.randn(1, 32, 128, 160).cuda()
     output = dummy_evidential_model(dummy_input)
     dot = make_dot(output, params=dict(dummy_evidential_model.named_parameters()))
-    dot.render("/home/grannemann/Downloads/dummy_evidential_model", format="png")
+    dot.render("/home/grannemann/Downloads/evidential_model", format="png")
 
+    dummy_input = torch.randn(1, 5, 3, 128, 160).cuda()
+    output = dummy_aarmvsnet_model(dummy_input)
+    dot = make_dot(output, params=dict(dummy_evidential_model.named_parameters()))
+    dot.render("/home/grannemann/Downloads/aarmvsnet_model", format="png")
+
+#TODO AARMVSNet broken
+def export_onnx():
+    dummy_evidential_model = EvidentialWrapper().cuda()
+    dummy_aarmvsnet_model = AARMVSNetWrapper().cuda()
+
+    dummy_input = torch.randn(1, 32, 128, 160).cuda()
+    torch.onnx.export(dummy_evidential_model, dummy_input, '/home/grannemann/Downloads/evidential_model.onnx', input_names=["features"], output_names=["logits"], opset_version=11)
+    print("Exported Evidential onnx model.")
+
+    dummy_input = torch.randn(1, 5, 3, 128, 160).cuda()
+    torch.onnx.export(dummy_aarmvsnet_model, dummy_input, '/home/grannemann/Downloads/aarmvsnet_model.onnx', input_names=["image"], output_names=["logits"], opset_version=14, verbose=True)
+    print("Exported AARMVSNet onnx model.")
+
+
+if __name__ == "__main__":
+    export_onnx()

@@ -265,13 +265,9 @@ def train_sample(sample, detailed_summary=False):
     depth_interval = sample_cuda["depth_interval"]
     depth_value = sample_cuda["depth_values"]
     #with torch.no_grad():
-    outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
+    probability_volume = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
 
-    #dummy_model = ModelWrapper().cuda()
-    #summary(dummy_model, input_size=(32, 128, 160))
-
-
-    probability_volume = outputs["probability_volume"].cuda()
+    outputs = {"probability_volume" : probability_volume}
 
     # Evidential part
     evidential_model = EvidentialModule(depth=args.numdepth).cuda()
