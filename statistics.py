@@ -39,7 +39,7 @@ def export_onnx():
     dummy_aarmvsnet_model = AARMVSNetWrapper().cuda()
 
     dummy_input = torch.randn(1, 32, 128, 160).cuda()
-    torch.onnx.export(dummy_evidential_model, dummy_input, '/home/grannemann/Downloads/evidential_model.onnx', input_names=["features"], output_names=["logits"], opset_version=11)
+    torch.onnx.export(dummy_evidential_model, dummy_input, '/home/grannemann/Downloads/evidential_model.onnx', input_names=["Features"], output_names=["Evidential Parameters"], opset_version=11)
     print("Exported Evidential onnx model.")
 
     dummy_input = torch.randn(1, 5, 3, 128, 160).cuda()
