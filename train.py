@@ -199,28 +199,26 @@ def train():
         #TODO Hier wird nur bis x trainiert
         for batch_idx, sample in enumerate(TrainImgLoader):
         #for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 10, 1)):
-        # TODO check why some images have mask 0
-            if torch.any(sample["mask"]):
-                start_time = time.time()
-                global_step = len(TrainImgLoader) * epoch_idx + batch_idx
-                do_summary = global_step % args.summary_freq == 0
-                loss, scalar_outputs, image_outputs, evidential_outputs = train_sample(sample, detailed_summary=do_summary)
+            start_time = time.time()
+            global_step = len(TrainImgLoader) * epoch_idx + batch_idx
+            do_summary = global_step % args.summary_freq == 0
+            loss, scalar_outputs, image_outputs, evidential_outputs = train_sample(sample, detailed_summary=do_summary)
 
-                for param_group in optimizer.param_groups:
-                    lr = param_group['lr']
+            for param_group in optimizer.param_groups:
+                lr = param_group['lr']
 
-                if batch_idx % args.save_freq_fig == 0:
-                    save_errormap(image_outputs, evidential_outputs)
+            if batch_idx % args.save_freq_fig == 0:
+                save_errormap(image_outputs, evidential_outputs)
 
-                if do_summary:
-                    save_scalars(logger, 'train', scalar_outputs, global_step)
-                    logger.add_scalar('train/lr', lr, global_step)
-                    save_images(logger, 'train', image_outputs, global_step)
-                del scalar_outputs, image_outputs
-                print(
-                    'Epoch {}/{}, Iter {}/{}, LR {}, train loss = {:.3f}, time = {:.3f}'.format(epoch_idx, args.epochs, batch_idx,
-                                                                                         len(TrainImgLoader), lr, loss,
-                                                                                         time.time() - start_time))
+            if do_summary:
+                save_scalars(logger, 'train', scalar_outputs, global_step)
+                logger.add_scalar('train/lr', lr, global_step)
+                save_images(logger, 'train', image_outputs, global_step)
+            del scalar_outputs, image_outputs
+            print(
+                'Epoch {}/{}, Iter {}/{}, LR {}, train loss = {:.3f}, time = {:.3f}'.format(epoch_idx, args.epochs, batch_idx,
+                                                                                     len(TrainImgLoader), lr, loss,
+                                                                                     time.time() - start_time))
         lr_scheduler.step()
         # checkpoint
         if (epoch_idx + 1) % args.save_freq_checkpoint == 0:
@@ -267,7 +265,7 @@ def train_sample(sample, detailed_summary=False):
     #with torch.no_grad():
     probability_volume = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
 
-    outputs = {"probability_volume" : probability_volume}
+    outputs = {"probability_volume": probability_volume}
 
     # Evidential part
     evidential_model = EvidentialModule(depth=args.numdepth).cuda()

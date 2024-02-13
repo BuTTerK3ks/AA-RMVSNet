@@ -87,9 +87,9 @@ class hourglassup(nn.Module):
                                padding=1, output_padding=1, stride=2, bias=False),
             nn.BatchNorm3d(in_channels))
 
-        self.combine1 = nn.Sequential(convbn_3d(in_channels * 4, in_channels * 2, 3, 1, 1),
+        self.combine1 = nn.Sequential(convbn_3d(in_channels * 3, in_channels * 2, 3, 1, 1),
                                       Mish())
-        self.combine2 = nn.Sequential(convbn_3d(in_channels * 6, in_channels * 4, 3, 1, 1),
+        self.combine2 = nn.Sequential(convbn_3d(in_channels * 5, in_channels * 4, 3, 1, 1),
                                       Mish())
         # self.combine3 = nn.Sequential(convbn_3d(in_channels * 6, in_channels * 4, 3, 1, 1),
         #                               Mish())
@@ -246,6 +246,15 @@ class EvidentialModule(nn.Module):
 
         self.dres1 = nn.Sequential(convbn_3d(32, 32, 3, 1, 1),
                                    Mish(),
+                                   convbn_3d(32, 32, 3, 1, 1),
+                                   Mish())
+
+        self.conv_vol2 = nn.Sequential(convbn_3d(1, 32, 3, 1, 1),
+                                   Mish(),
+                                   convbn_3d(32, 32, 3, 1, 1))
+
+        self.conv_vol3 = nn.Sequential(convbn_3d(1, 32, 3, 1, 1),
+                                   Mish(),
                                    convbn_3d(32, 32, 3, 1, 1))
 
         self.combine1 = hourglassup(32)
@@ -294,7 +303,7 @@ class EvidentialModule(nn.Module):
 
     def forward(self, input, depth_value):
         # Add a channel dimension for 3D convolution (N, C, D, H, W)
-        x = input.unsqueeze(1)
+        #x = input.unsqueeze(1)
 
         # Layout 3D
         #_______________________________________________________________________________________________
@@ -363,12 +372,30 @@ class EvidentialModule(nn.Module):
         # ELFNet inspired
         # _______________________________________________________________________________________________
 
-        cost0 = self.dres0(x)
+        x = input.unsqueeze(0)
+
+
+        volume1 = F.interpolate(x, [self.maxdisp, input.size()[2], input.size()[
+                3]], mode='trilinear', align_corners=True)
+        volume1 = F.softmax(volume1, dim=2)
+
+        volume2 = F.interpolate(x, [self.maxdisp // 2, input.size()[2] // 2, input.size()[
+                3] // 2], mode='trilinear', align_corners=True)
+        volume2 = F.softmax(volume2, dim=2)
+
+        volume3 = F.interpolate(x, [self.maxdisp // 4, input.size()[2] // 4, input.size()[
+                3] // 4], mode='trilinear', align_corners=True)
+        volume3 = F.softmax(volume3, dim=1)
+
+
+        cost0 = self.dres0(volume1)
         cost0 = self.dres1(cost0) + cost0
 
-        #combine = self.combine1(cost0)
+        volume2 = self.conv_vol2(volume2)
+        volume3 = self.conv_vol3(volume3)
 
-        out1 = self.dres2(cost0)
+        combine = self.combine1(cost0, volume2, volume3)
+        out1 = self.dres2(combine)
         out2 = self.dres3(out1)
 
         def get_pred(cost, depth_value):
@@ -438,13 +465,11 @@ def criterion_uncertainty(u, la, alpha, beta, y, mask, weight_reg=0.1):
          torch.lgamma(alpha) - torch.lgamma(alpha+0.5))[mask]
     ) / torch.sum(mask == True)
 
-    lossr = weight_reg * (torch.sum((torch.abs(u - y) * (2 * la + alpha))
-                                         [mask])) / torch.sum(mask == True)
+    lossr = weight_reg * (torch.sum((torch.abs(u - y) * (2 * la + alpha))[mask])) / torch.sum(mask == True)
+    test1 = torch.abs(u - y) * mask
     loss = loss + lossr
 
     # TODO check why mask contains only 0
-    # Replace 'NaN' and 'Inf' values with 0
-    loss = torch.where(torch.isfinite(loss), loss, torch.tensor(0.0).cuda())
 
     return loss
 
