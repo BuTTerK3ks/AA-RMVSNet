@@ -60,8 +60,8 @@ def save_depth():
 
     TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 
-    model = AARMVSNet(image_scale=args.image_scale, 
-            max_h=args.max_h, max_w=args.max_w, return_depth=args.return_depth)
+    model = EMVSNet(image_scale=args.image_scale,
+                    max_h=args.max_h, max_w=args.max_w, return_depth=args.return_depth)
 
 
     # load checkpoint file specified by args.loadckpt

@@ -217,7 +217,7 @@ class UNetConvLSTM(nn.Module):
 class AARMVSNetWrapper(nn.Module):
     def __init__(self):
         super().__init__()
-        self.original_model = AARMVSNet(max_h=512, max_w=640).cuda()
+        self.original_model = EMVSNet(max_h=512, max_w=640).cuda()
 
     def forward(self, x):
         # Create dummy proj_matrices and depth_values with the expected shape and type
@@ -227,10 +227,10 @@ class AARMVSNetWrapper(nn.Module):
         return self.original_model(x, proj_matrices=dummy_proj_matrices, depth_values=dummy_depth_values)
 
 
-class AARMVSNet(nn.Module):
+class EMVSNet(nn.Module):
     def __init__(self, image_scale=0.25, max_h=960, max_w=480, return_depth=False):
 
-        super(AARMVSNet,self).__init__()
+        super(EMVSNet, self).__init__()
         self.feature = FeatNet()
         input_size = (int(max_h * image_scale), int(max_w * image_scale))  # height, width
 
@@ -243,12 +243,10 @@ class AARMVSNet(nn.Module):
         self.cost_regularization = UNetConvLSTM(input_size, input_dim, hidden_dim, kernel_size, num_layers,
                                                 bias=True)
         self.omega = InterViewAAModule(32)
+        self.evidential = EvidentialModule(depth=32)
 
         # Variables
         self.return_depth = return_depth
-
-
-
 
     def forward(self, imgs, proj_matrices, depth_values):
         imgs = torch.unbind(imgs, 1)
@@ -265,8 +263,7 @@ class AARMVSNet(nn.Module):
         # Recurrent process i-th depth layer
         cost_reg_list = []
         hidden_state = None
-        
-        
+
         if not self.return_depth:  # Training Phase;
             for d in range(num_depth):           
                 ref_volume = ref_feature
@@ -288,7 +285,9 @@ class AARMVSNet(nn.Module):
 
             probability_volume = F.softmax(prob_volume, dim=1)  # get prob volume use for recurrent to decrease memory consumption
 
-            return probability_volume
+            evidential, prob_combine = self.evidential(probability_volume, depth_values)
+
+            return probability_volume, evidential, prob_combine
 
 
         #TODO include evidential - both simultaniously
