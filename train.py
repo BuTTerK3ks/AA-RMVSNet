@@ -67,7 +67,7 @@ parser.add_argument('--summary_freq', type=int, default=20, help='print and summ
 parser.add_argument('--save_freq_checkpoint', type=int, default=1, help='save checkpoint frequency')
 parser.add_argument('--seed', type=int, default=1, metavar='S', help='random seed')
 
-parser.add_argument('--evidential', type=bool, default=False, help='use evidential')
+parser.add_argument('--evidential', action='store_true', help='use evidential')
 parser.add_argument('--save_freq_fig', type=int, default=20, help='save figure frequency')
 
 
@@ -165,14 +165,14 @@ if (args.mode == "train" and args.resume):
     print(optimizer)
 
     start_epoch = state_dict['epoch'] + 1
-    '''
+
 elif args.loadckpt:
     # load checkpoint file specified by args.loadckpt
     print("loading model {}".format(args.loadckpt))
     state_dict = torch.load(args.loadckpt)
     model.load_state_dict(state_dict['model'])
 print("start at epoch {}".format(start_epoch))
-    '''
+
 
 # main function
 def train():
@@ -191,7 +191,7 @@ def train():
         # training
         #TODO Hier wird nur bis x trainiert
         #for batch_idx, sample in enumerate(TrainImgLoader):
-        for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 1000, 1)):
+        for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 200, 1)):
             start_time = time.time()
             global_step = len(TrainImgLoader) * epoch_idx + batch_idx
             do_summary = global_step % args.summary_freq == 0
@@ -223,7 +223,9 @@ def train():
 
     
         avg_test_scalars = DictAverageMeter()
-        for batch_idx, sample in enumerate(TestImgLoader):
+        # TODO Hier wird nur bis x getestet
+        #for batch_idx, sample in enumerate(TestImgLoader):
+        for batch_idx, sample in enumerate(islice(TestImgLoader, 0, 200, 1)):
             start_time = time.time()
             global_step = len(TestImgLoader) * epoch_idx + batch_idx
             do_summary = global_step % args.summary_freq == 0
@@ -307,7 +309,12 @@ def test_sample(sample, detailed_summary=True):
     mask = sample_cuda["mask"]
     depth_interval = sample_cuda["depth_interval"]
     depth_value = sample_cuda["depth_values"]
-    outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
+    probability_volume, evidential, probabilities = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
+
+    outputs = {
+        "probability_volume": probability_volume,
+        'evidential_prediction': evidential
+    }
 
     prob_volume = outputs['probability_volume']
     loss, depth_est, photometric_confidence = mvsnet_cls_loss(prob_volume, depth_gt, mask, depth_value, return_prob_map=True)
