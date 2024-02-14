@@ -118,19 +118,15 @@ TrainImgLoader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_wo
 TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 # Use test set (with gt depths) for validation
 
-
-print('model: AA-RMVSNet')
-model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w)
-
-
+print('model: AA-RMVSNet and ELFNet')
+costvolume_model = AARMVSNet(image_scale=args.image_scale, max_h=args.max_h, max_w=args.max_w)
+evidential_model = EvidentialModule(depth=args.numdepth)
 
 # Find total parameters and trainable parameters
-total_params = sum(p.numel() for p in model.parameters())
-print(f'{total_params:,} total parameters.')
-total_trainable_params = sum(
-    p.numel() for p in model.parameters() if p.requires_grad)
-print(f'{total_trainable_params:,} training parameters.')
-
+total_params = sum(p.numel() for p in costvolume_model.parameters()) + sum(k.numel() for k in evidential_model.parameters())
+print(f'Total Parameters: {total_params:,}')
+total_trainable_params = sum(p.numel() for p in costvolume_model.parameters() if p.requires_grad) + sum(p.numel() for p in evidential_model.parameters() if p.requires_grad)
+print(f'Training Parameters: {total_trainable_params:,}')
 
 if args.loadckpt:
 
@@ -141,22 +137,23 @@ if args.loadckpt:
     state_dict = torch.load(args.loadckpt)
     if "module.feature.conv0_0.0.weight" in state_dict['model']:
         print("With module in keys")
-        model = nn.DataParallel(model)
-        model.load_state_dict(state_dict['model'], True)
+        costvolume_model = nn.DataParallel(costvolume_model)
+        costvolume_model.load_state_dict(state_dict['model'], True)
 
     else:
         print("No module in keys")
-        model.load_state_dict(state_dict['model'], True)
-        model = nn.DataParallel(model)
+        costvolume_model.load_state_dict(state_dict['model'], True)
+        costvolume_model = nn.DataParallel(costvolume_model)
 
 
-model = model.cuda()
-model = nn.parallel.DataParallel(model)
+costvolume_model = costvolume_model.cuda()
+costvolume_model = nn.parallel.DataParallel(costvolume_model)
 
+evidential_model = evidential_model.cuda()
+evidential_model = nn.parallel.DataParallel(evidential_model)
 
-
-print('optimizer: Adam \n')
-optimizer = optim.Adam(model.parameters(), lr=args.lr)
+print('Optimizer: Adam \n')
+optimizer = optim.Adam(costvolume_model.parameters(), lr=args.lr)
 
 # load parameters
 start_epoch = 0
@@ -167,7 +164,7 @@ if (args.mode == "train" and args.resume):
     loadckpt = os.path.join(args.logdir, saved_models[-1])
     print("resuming from:", loadckpt)
     state_dict = torch.load(loadckpt)
-    model.load_state_dict(state_dict['model'])
+    costvolume_model.load_state_dict(state_dict['model'])
     optimizer.load_state_dict(state_dict['optimizer'])
     print(optimizer)
 
@@ -197,8 +194,8 @@ def train():
         print('Start Training')
         # training
         #TODO Hier wird nur bis x trainiert
-        for batch_idx, sample in enumerate(TrainImgLoader):
-        #for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 10, 1)):
+        #for batch_idx, sample in enumerate(TrainImgLoader):
+        for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 10, 1)):
             start_time = time.time()
             global_step = len(TrainImgLoader) * epoch_idx + batch_idx
             do_summary = global_step % args.summary_freq == 0
@@ -224,7 +221,7 @@ def train():
         if (epoch_idx + 1) % args.save_freq_checkpoint == 0:
             torch.save({
                 'epoch': epoch_idx,
-                'model': model.state_dict(),
+                'model': costvolume_model.state_dict(),
                 'optimizer': optimizer.state_dict()},
                 "{}/model_{:0>6}.ckpt".format(args.logdir, epoch_idx))
 
@@ -254,7 +251,7 @@ def train():
 
 
 def train_sample(sample, detailed_summary=False):
-    model.train()
+    costvolume_model.train()
     optimizer.zero_grad()
     sample_cuda = tocuda(sample)
 
@@ -263,12 +260,12 @@ def train_sample(sample, detailed_summary=False):
     depth_interval = sample_cuda["depth_interval"]
     depth_value = sample_cuda["depth_values"]
     #with torch.no_grad():
-    probability_volume = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
+    probability_volume = costvolume_model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
 
     outputs = {"probability_volume": probability_volume}
 
     # Evidential part
-    evidential_model = EvidentialModule(depth=args.numdepth).cuda()
+
     evidential_model.train()
 
     outputs['evidential_prediction'], probabilities = evidential_model(probability_volume, depth_value)
@@ -312,13 +309,13 @@ def train_sample(sample, detailed_summary=False):
 
 @make_nograd_func
 def test_sample(sample, detailed_summary=True):
-    model.eval()
+    costvolume_model.eval()
     sample_cuda = tocuda(sample)
     depth_gt = sample_cuda["depth"]
     mask = sample_cuda["mask"]
     depth_interval = sample_cuda["depth_interval"]
     depth_value = sample_cuda["depth_values"]
-    outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
+    outputs = costvolume_model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
 
     prob_volume = outputs['probability_volume']
     loss, depth_est, photometric_confidence = mvsnet_cls_loss(prob_volume, depth_gt, mask, depth_value, return_prob_map=True)

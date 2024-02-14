@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .module import *
-from evidential.models import EvidentialModule, loss_der
+from evidential.models import *
 
 class IntraViewAAModule(nn.Module):
     def __init__(self):
@@ -246,6 +246,7 @@ class AARMVSNet(nn.Module):
 
         # Variables
         self.return_depth = return_depth
+
 
 
 
