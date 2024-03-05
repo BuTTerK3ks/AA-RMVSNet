@@ -23,6 +23,7 @@ class IntraViewAAModule(nn.Module):
         m2 = nn.functional.interpolate(x2_, scale_factor=4, mode='bilinear', align_corners=True)
         return torch.cat([m0, m1, m2], 1)
 
+
 class InterViewAAModule(nn.Module):
     def __init__(self,in_channels=32, bias=True):
         super(InterViewAAModule, self).__init__()
@@ -35,6 +36,7 @@ class InterViewAAModule(nn.Module):
     
     def forward(self, x):
         return self.reweight_network(x)
+
 
 class FeatNet(nn.Module):
     def __init__(self):
@@ -59,6 +61,7 @@ class FeatNet(nn.Module):
         x2 = self.conv2(x1)
 
         return self.intraAA(x0,x1,x2)
+
 
 class UNetConvLSTM(nn.Module):
     def __init__(self, input_size, input_dim, hidden_dim, kernel_size, num_layers,
@@ -214,10 +217,11 @@ class UNetConvLSTM(nn.Module):
             param = [param] * num_layers
         return param
 
+
 class AARMVSNetWrapper(nn.Module):
     def __init__(self):
         super().__init__()
-        self.original_model = EMVSNet(max_h=512, max_w=640).cuda()
+        self.original_model = EMVSNet(max_h=512, max_w=640, disparity_level=32).cuda()
 
     def forward(self, x):
         # Create dummy proj_matrices and depth_values with the expected shape and type
@@ -228,7 +232,7 @@ class AARMVSNetWrapper(nn.Module):
 
 
 class EMVSNet(nn.Module):
-    def __init__(self, image_scale=0.25, max_h=960, max_w=480, return_depth=False):
+    def __init__(self, disparity_level, image_scale=0.25, max_h=960, max_w=480, return_depth=False):
 
         super(EMVSNet, self).__init__()
         self.feature = FeatNet()
@@ -243,7 +247,7 @@ class EMVSNet(nn.Module):
         self.cost_regularization = UNetConvLSTM(input_size, input_dim, hidden_dim, kernel_size, num_layers,
                                                 bias=True)
         self.omega = InterViewAAModule(32)
-        self.evidential = EvidentialModule(depth=32)
+        self.evidential = EvidentialModule(depth=disparity_level)
 
         # Variables
         self.return_depth = return_depth
