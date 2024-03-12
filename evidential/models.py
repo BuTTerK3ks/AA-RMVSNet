@@ -498,12 +498,20 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
 
     #TODO Changed, check from where i got this.
     # get aleatoric and epistemic uncertainty
-    aleatoric = torch.sqrt(beta * (nu + 1) / nu / alpha)
-    epistemic = 1. / torch.sqrt(nu)
+    aleatoric_1 = torch.sqrt(beta * (nu + 1) / nu / alpha)
+    epistemic_1 = 1. / torch.sqrt(nu)
 
-    '''
-    aleatoric = beta / (alpha - 1)
-    epistemic = beta / (alpha - 1) / nu
-    '''
+    aleatoric_2 = beta / (alpha - 1)
+    epistemic_2 = beta / (alpha - 1) / nu
 
-    return loss, gamma, aleatoric, epistemic
+    total = beta / (alpha - 1)
+
+    evidential = {
+        'aleatoric_1': aleatoric_1,
+        'epistemic_1': epistemic_1,
+        'aleatoric_2': aleatoric_2,
+        'epistemic_2': epistemic_2,
+        'total': total
+    }
+
+    return loss, gamma, evidential

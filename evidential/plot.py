@@ -117,3 +117,5 @@ def grid_of_images(all_dict):
 
     plt.show()
     return fig
+
+def rgb_image(image_numpy, scale=True):

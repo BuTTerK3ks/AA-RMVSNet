@@ -16,12 +16,12 @@ def std_prob(probabilities):
     return std_dev
 
 def divide_by_total(evidential_outputs):
-    aleatoric = evidential_outputs["aleatoric"]
-    epistemic = evidential_outputs["epistemic"]
-    total = aleatoric + epistemic
-    aleatoric_by_total = aleatoric/total
-    epistemic_by_total = epistemic/total
-    return aleatoric_by_total,epistemic_by_total
+    total = evidential_outputs["total"]
+    aleatoric_1_by_total = evidential_outputs["aleatoric_1"]/total
+    epistemic_1_by_total = evidential_outputs["epistemic_1"]/total
+    aleatoric_2_by_total = evidential_outputs["aleatoric_2"]/total
+    epistemic_2_by_total = evidential_outputs["epistemic_2"]/total
+    return aleatoric_1_by_total, epistemic_1_by_total, aleatoric_2_by_total, epistemic_2_by_total
 
 def visualize_torchviz():
     dummy_evidential_model = EvidentialWrapper().cuda()
