@@ -6,10 +6,12 @@ from torch import Tensor
 import torch.optim as optim
 import torch.nn.functional as F
 
+
 def convbn_3d(in_channels, out_channels, kernel_size, stride, pad):
     return nn.Sequential(nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size, stride=stride,
                                    padding=pad, bias=False),
                          nn.BatchNorm3d(out_channels))
+
 
 class Mish(nn.Module):
     def __init__(self):
@@ -19,6 +21,7 @@ class Mish(nn.Module):
     def forward(self, x):
         # save 1 second per epoch with no x= x*() and then return x...just inline it.
         return x * (torch.tanh(F.softplus(x)))
+
 
 def FMish(x):
     '''
@@ -33,12 +36,14 @@ def FMish(x):
 
     return x * torch.tanh(F.softplus(x))
 
+
 def disparity_regression(x, depth_values, max_d=60):
     assert len(x.shape) == 4
     disp_values = torch.arange(0, max_d, dtype=x.dtype, device=x.device)
     depth_1 = depth_values.size()[1]
     disp_values = depth_values.view(1, depth_values.size()[1], 1, 1)
     return torch.sum(x * disp_values, 1, keepdim=False)
+
 
 def disparity_classification(x, depth_values):
     assert len(x.shape) == 4
@@ -47,9 +52,9 @@ def disparity_classification(x, depth_values):
     return pred
 
 
-class hourglassup(nn.Module):
+class HourGlassUp(nn.Module):
     def __init__(self, in_channels):
-        super(hourglassup, self).__init__()
+        super(HourGlassUp, self).__init__()
 
         self.conv1 = nn.Conv3d(in_channels, in_channels * 2, kernel_size=3, stride=2,
                                padding=1, bias=False)
@@ -120,9 +125,9 @@ class hourglassup(nn.Module):
         return conv9
 
 
-class hourglass(nn.Module):
+class HourGlass(nn.Module):
     def __init__(self, in_channels):
-        super(hourglass, self).__init__()
+        super(HourGlass, self).__init__()
 
         self.conv1 = nn.Sequential(convbn_3d(in_channels, in_channels * 2, 3, 2, 1),
                                    Mish())
@@ -163,6 +168,7 @@ class hourglass(nn.Module):
 
         return conv6
 
+
 class EvidentialWrapper(nn.Module):
     def __init__(self):
         super().__init__()
@@ -172,7 +178,6 @@ class EvidentialWrapper(nn.Module):
         # Create dummy proj_matrices and depth_values with the expected shape and type
         dummy_depth_values = torch.randn(1, 32).cuda()  # Adjust the shape and values as needed
         return self.original_model(x, dummy_depth_values)
-
 
 
 class EvidentialModule(nn.Module):
@@ -257,9 +262,9 @@ class EvidentialModule(nn.Module):
                                    Mish(),
                                    convbn_3d(32, 32, 3, 1, 1))
 
-        self.combine1 = hourglassup(32)
-        self.dres2 = hourglass(32)
-        self.dres3 = hourglass(32)
+        self.combine1 = HourGlassUp(32)
+        self.dres2 = HourGlass(32)
+        self.dres3 = HourGlass(32)
 
         self.classif0 = nn.Sequential(convbn_3d(32, 32, 3, 1, 1),
                                       Mish(),
@@ -453,6 +458,7 @@ class EvidentialModule(nn.Module):
 
         return evidential, prob_combine
 
+
 def criterion_uncertainty(u, la, alpha, beta, y, mask, weight_reg=0.1):
     # our loss function
     om = 2 * beta * (1 + la)
@@ -466,15 +472,14 @@ def criterion_uncertainty(u, la, alpha, beta, y, mask, weight_reg=0.1):
     ) / torch.sum(mask == True)
 
     lossr = weight_reg * (torch.sum((torch.abs(u - y) * (2 * la + alpha))[mask])) / torch.sum(mask == True)
-    test1 = torch.abs(u - y) * mask
     loss = loss + lossr
-
-    # TODO check why mask contains only 0
 
     return loss
 
-
-
+def compute_uncertainty(self, u, la, alpha, beta):
+    aleatoric = beta / (alpha - 1)
+    epistemic = beta / (alpha - 1) / la
+    return aleatoric, epistemic
 
 
 def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
@@ -491,39 +496,14 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
 
     loss = criterion_uncertainty(gamma, nu, alpha, beta, depth_gt, mask, weight_reg=0.1)
 
-    '''
-    #highest_prob = torch.argmax(gamma, dim=1).type(torch.long)
-    #depth_map = torch.take(depth_value, highest_prob)
-    depth = depth_value.size(1)
-    indices = (gamma * (depth - 1)).long()
-    #selected_depth_values = torch.gather(depth_value, 1, indices.expand(-1, 1, -1, -1))
-    selected_depth_values = torch.take(depth_value, indices)
-
-    depth_map = selected_depth_values
-
-    torch.set_printoptions(profile="full")
-
-    error = depth_map - depth_gt
-
-    omega = 2.0 * beta * (1.0 + nu)
-    # Formula 8 from Deep Evidential Regression Paper
-    calculated_loss = 0.5 * torch.log(math.pi / nu) - alpha * torch.log(omega) + (alpha + 0.5) * torch.log(error ** 2 * nu + omega) + torch.lgamma(alpha) - torch.lgamma(alpha + 0.5) + coeff * torch.abs(error) * (2.0 * nu + alpha)
-
-
-
-
-    # mask loss and weight regarding the effective amount of valid pixels
-    masked_loss = calculated_loss * mask
-    valid_pixel_num = torch.sum(mask, dim=[1, 2]) + 1e-6
-    loss = torch.sum(masked_loss)/valid_pixel_num
-
-    '''
+    #TODO Changed, check from where i got this.
     # get aleatoric and epistemic uncertainty
     aleatoric = torch.sqrt(beta * (nu + 1) / nu / alpha)
     epistemic = 1. / torch.sqrt(nu)
 
-
-
+    '''
+    aleatoric = beta / (alpha - 1)
+    epistemic = beta / (alpha - 1) / nu
+    '''
 
     return loss, gamma, aleatoric, epistemic
-

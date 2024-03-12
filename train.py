@@ -195,15 +195,12 @@ def train():
 
             for param_group in optimizer.param_groups:
                 lr = param_group['lr']
-            '''
-            if batch_idx % args.save_freq_fig == 0:
-                save_errormap(image_outputs, evidential_outputs)
-            '''
 
             if do_summary:
                 save_scalars(logger, 'train', scalar_outputs, global_step)
                 logger.add_scalar('train/lr', lr, global_step)
                 save_images(logger, 'train', image_outputs, global_step)
+                #save_rgb(logger, image_outputs, evidential_outputs)
             del scalar_outputs, image_outputs
             print(
                 'Epoch {}/{}, Iter {}/{}, LR {}, train loss = {:.3f}, time = {:.3f}'.format(epoch_idx, args.epochs, batch_idx,
@@ -270,7 +267,8 @@ def train_sample(sample, detailed_summary=False):
     optimizer.step()
 
     std_dev = std_prob(probabilities)
-    aleatoric_by_total,epistemic_by_total = divide_by_total(evidential_outputs)
+    aleatoric_by_total, epistemic_by_total = divide_by_total(evidential_outputs)
+    error_map = (depth_est - depth_gt).abs() * mask
 
     scalar_outputs = {"loss": loss}
     image_outputs = {"depth_est": depth_est * mask,
@@ -282,7 +280,7 @@ def train_sample(sample, detailed_summary=False):
                      "epis": evidential_outputs["epistemic"],
                      "aleatoric_by_total": aleatoric_by_total,
                      "epistemic_by_total": epistemic_by_total,
-                     "error_map": (depth_est - depth_gt).abs() * mask
+                     "error_map": error_map,
                      }
 
     if detailed_summary:
