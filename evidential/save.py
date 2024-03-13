@@ -35,5 +35,8 @@ def save_grid(logger, image_outputs, evidential_outputs):
                     name = '{}/{}_{}'.format(mode, key, idx)
                     logger.add_image(name, preprocess(name, value[idx]), global_step)
 
-def save_rgb(logger, image_outputs, evidential_outputs):
-    images_dict = image_outputs
+def save_pytorch(directory, mode, global_step, image_outputs, evidential_outputs):
+    total_dict = {**image_outputs, **evidential_outputs}
+    path_to_store = directory + "/results/" + str(mode) + "/"
+    filename = str(global_step)
+    torch.save(total_dict, path_to_store + filename + '.pt')

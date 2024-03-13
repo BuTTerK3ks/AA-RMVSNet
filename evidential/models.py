@@ -507,6 +507,10 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     total = beta / (alpha - 1)
 
     evidential = {
+        'gamma': gamma,
+        'nu': nu,
+        'alpha': alpha,
+        'beta': beta,
         'aleatoric_1': aleatoric_1,
         'epistemic_1': epistemic_1,
         'aleatoric_2': aleatoric_2,

@@ -119,3 +119,4 @@ def grid_of_images(all_dict):
     return fig
 
 def rgb_image(image_numpy, scale=True):
+    raise NotImplementedError

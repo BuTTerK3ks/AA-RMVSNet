@@ -187,7 +187,7 @@ def train():
         # training
         #TODO Hier wird nur bis x trainiert
         for batch_idx, sample in enumerate(TrainImgLoader):
-        #for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 20, 1)):
+        #for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 100, 1)):
             start_time = time.time()
             global_step = len(TrainImgLoader) * epoch_idx + batch_idx
             do_summary = (global_step % args.summary_freq == 0)
@@ -200,7 +200,7 @@ def train():
                 save_scalars(logger, 'train', scalar_outputs, global_step)
                 logger.add_scalar('train/lr', lr, global_step)
                 save_images(logger, 'train', image_outputs, global_step)
-                save_rgb(logger, image_outputs, evidential_outputs)
+                save_pytorch(args.logdir, 'train', global_step, image_outputs, evidential_outputs)
             del scalar_outputs, image_outputs
             print(
                 'Epoch {}/{}, Iter {}/{}, LR {}, train loss = {:.3f}, time = {:.3f}'.format(epoch_idx, args.epochs, batch_idx,
@@ -218,7 +218,7 @@ def train():
         avg_test_scalars = DictAverageMeter()
         # TODO Hier wird nur bis x getestet
         for batch_idx, sample in enumerate(TestImgLoader):
-        #for batch_idx, sample in enumerate(islice(TestImgLoader, 0, 20, 1)):
+        #for batch_idx, sample in enumerate(islice(TestImgLoader, 0, 100, 1)):
             start_time = time.time()
             global_step = len(TestImgLoader) * epoch_idx + batch_idx
             do_summary = global_step % args.summary_freq == 0
@@ -226,6 +226,7 @@ def train():
             if do_summary:
                 save_scalars(logger, 'test', scalar_outputs, global_step)
                 save_images(logger, 'test', image_outputs, global_step)
+                save_pytorch(args.logdir, 'test', global_step, image_outputs, evidential_outputs)
             avg_test_scalars.update(scalar_outputs)
             
             print('Epoch {}/{}, Iter {}/{}, test loss = {:.3f}, time = {:3f}, ame = {:3f}, thres2mm = {:3f}, thres4mm = {:3f}, thres8mm = {:3f}, thres16mm = {:3f}, thres32mm = {:3f}'.format(
@@ -319,12 +320,11 @@ def test_sample(sample, detailed_summary=True):
     }
 
     prob_volume = outputs['probability_volume']
-    loss, depth_est, aleatoric, epistemic = loss_der(outputs, depth_gt, mask, depth_value)
-    evidential_outputs = {"aleatoric": aleatoric,
-                          "epistemic": epistemic}
+    loss, depth_est, evidential_outputs = loss_der(outputs, depth_gt, mask, depth_value)
 
     std_dev = std_prob(probabilities)
-    aleatoric_by_total,epistemic_by_total = divide_by_total(evidential_outputs)
+    aleatoric_1_by_total, epistemic_1_by_total, aleatoric_2_by_total, epistemic_2_by_total = divide_by_total(evidential_outputs)
+    error_map = (depth_est - depth_gt).abs() * mask
 
     scalar_outputs = {"loss": loss}
     image_outputs = {"depth_est": depth_est * mask,
@@ -332,16 +332,22 @@ def test_sample(sample, detailed_summary=True):
                      "ref_img": sample["imgs"][:, 0],
                      "std_dev": std_dev,
                      "mask": sample["mask"],
-                     "alea": evidential_outputs["aleatoric"],
-                     "epis": evidential_outputs["epistemic"],
-                     "aleatoric_by_total": aleatoric_by_total,
-                     "epistemic_by_total": epistemic_by_total,
-                     "error_map": (depth_est - depth_gt).abs() * mask
+                     "aleatoric_1": evidential_outputs["aleatoric_1"],
+                     "epistemic_1": evidential_outputs["epistemic_1"],
+                     "aleatoric_2": evidential_outputs["aleatoric_2"],
+                     "epistemic_2": evidential_outputs["epistemic_2"],
+                     "aleatoric_1_by_total": aleatoric_1_by_total,
+                     "epistemic_1_by_total": epistemic_1_by_total,
+                     "aleatoric_2_by_total": aleatoric_2_by_total,
+                     "epistemic_2_by_total": epistemic_2_by_total,
+                     "error_map": error_map,
                      }
 
+    scalar_outputs["aleatoric_1"] = torch.mean(evidential_outputs["aleatoric_1"]).item()
+    scalar_outputs["epistemic_1"] = torch.mean(evidential_outputs["epistemic_1"]).item()
+    scalar_outputs["aleatoric_2"] = torch.mean(evidential_outputs["aleatoric_2"]).item()
+    scalar_outputs["epistemic_2"] = torch.mean(evidential_outputs["epistemic_2"]).item()
     scalar_outputs["abs_depth_error"] = AbsDepthError_metrics(depth_est, depth_gt, mask > 0.5)
-    scalar_outputs["aleatoric"] = torch.mean(evidential_outputs["aleatoric"]).item()
-    scalar_outputs["epistemic"] = torch.mean(evidential_outputs["epistemic"]).item()
     scalar_outputs["thres2mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 2)
     scalar_outputs["thres4mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 4)
     scalar_outputs["thres8mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 8)
