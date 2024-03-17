@@ -37,6 +37,14 @@ def save_grid(logger, image_outputs, evidential_outputs):
 
 def save_pytorch(directory, mode, global_step, image_outputs, evidential_outputs):
     total_dict = {**image_outputs, **evidential_outputs}
+    del total_dict['aleatoric_1_by_total']
+    del total_dict['aleatoric_2_by_total']
+    del total_dict['epistemic_1_by_total']
+    del total_dict['epistemic_2_by_total']
+    del total_dict['alea_1']
+    del total_dict['alea_2']
+    del total_dict['epis_1']
+    del total_dict['epis_2']
     path_to_store = directory + "/results/" + str(mode) + "/"
     filename = str(global_step)
     torch.save(total_dict, path_to_store + filename + '.pt')
