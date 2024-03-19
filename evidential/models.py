@@ -496,11 +496,13 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
 
     loss = criterion_uncertainty(gamma, nu, alpha, beta, depth_gt, mask, weight_reg=0.1)
 
-    #TODO Changed, check from where i got this.
+    #TODO Analyze the difference in performance
     # get aleatoric and epistemic uncertainty
+    # method from "unreasonable effective der"
     aleatoric_1 = torch.sqrt(beta * (nu + 1) / nu / alpha)
     epistemic_1 = 1. / torch.sqrt(nu)
 
+    # traditional method
     aleatoric_2 = beta / (alpha - 1)
     epistemic_2 = beta / (alpha - 1) / nu
 
