@@ -268,7 +268,8 @@ class EMVSNet(nn.Module):
         cost_reg_list = []
         hidden_state = None
 
-        if not self.return_depth:  # Training Phase;
+        # Training Phase
+        if not self.return_depth:
             for d in range(num_depth):           
                 ref_volume = ref_feature
                 warped_volumes = None
@@ -295,7 +296,8 @@ class EMVSNet(nn.Module):
 
 
         #TODO include evidential - both simultaniously
-        else: #Test phase
+        # Test phase
+        else:
             shape = ref_feature.shape
             depth_image = torch.zeros(shape[0], shape[2], shape[3]).cuda()  # B * H * W
             max_prob_image = torch.zeros(shape[0], shape[2], shape[3]).cuda()
@@ -313,11 +315,10 @@ class EMVSNet(nn.Module):
                         warped_volumes = (reweight + 1) * warped_volume
                     else:
                         warped_volumes = warped_volumes + (reweight + 1) * warped_volume
-                # TODO Hier eins ausgerückt, checken!
-                    volume_variance = warped_volumes / len(src_features)
+
+                volume_variance = warped_volumes / len(src_features)
 
                 cost_reg, hidden_state = self.cost_regularization(-1 * volume_variance, hidden_state, d)
-                #TODO Hier evidential
                 cost_reg_list.append(cost_reg)
 
                 prob = torch.exp(cost_reg.squeeze(1))
@@ -337,10 +338,10 @@ class EMVSNet(nn.Module):
 
             conf = max_prob_image / forward_exp_sum
 
-            prob_volume = torch.stack(cost_reg_list, dim=1).squeeze(2)
-            evidential_prediction = self.evidential(prob_volume)
+            probability_volume = torch.stack(cost_reg_list, dim=1).squeeze(2)
+            evidential, prob_combine = self.evidential(probability_volume, depth_values)
 
-            return {"depth": forward_depth_map, "photometric_confidence": conf, 'evidential_prediction': evidential_prediction}
+            return {"depth": forward_depth_map, "photometric_confidence": conf, 'evidential_prediction': evidential}
 
 def mvsnet_cls_loss(prob_volume, depth_gt, mask, depth_value, return_prob_map=False):
     # depth_value: B * NUM

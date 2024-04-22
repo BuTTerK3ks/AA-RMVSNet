@@ -11,6 +11,7 @@ from models import *
 from utils import *
 from datasets.data_io import save_pfm
 import ast
+from collections import OrderedDict
 
 cudnn.benchmark = True
 
@@ -60,12 +61,14 @@ def save_depth():
 
     TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 
-    model = EMVSNet(image_scale=args.image_scale,
+    model = EMVSNet(disparity_level=32, image_scale=args.image_scale,
                     max_h=args.max_h, max_w=args.max_w, return_depth=args.return_depth)
 
 
     # load checkpoint file specified by args.loadckpt
     print("loading model {}".format(args.loadckpt))
+
+    '''
 
     # Allow both keys xxx & module.xxx in dict
     state_dict = torch.load(args.loadckpt)
@@ -78,6 +81,22 @@ def save_depth():
         print("No module in keys")
         model.load_state_dict(state_dict['model'], True)
         model = nn.DataParallel(model)
+        
+    '''
+    # Load the checkpoint
+    state_dict = torch.load(args.loadckpt)['model']  # Assuming 'model' is the key under which the state dict is saved
+
+    # Create a new state dictionary without the 'module.' prefix
+
+    new_state_dict = OrderedDict()
+
+    for k, v in state_dict.items():
+        name = k[7:] if k.startswith('module.') else k  # Remove 'module.' of each key
+        new_state_dict[name] = v
+
+    # Load the adjusted state dict into the model
+    model.load_state_dict(new_state_dict, strict=True)
+
     model.cuda()
     model.eval()
     

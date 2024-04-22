@@ -5,7 +5,7 @@ set -e
 batch=2
 d=512
 inverse_depth=True
-ckpt=./checkpoints/model_blended_v2.ckpt
+ckpt=./checkpoints/evidential_3ep/model_000002.ckpt
 
 CUDA_VISIBLE_DEVICES=0 python eval.py \
         --dataset=data_eval_transform_padding \
