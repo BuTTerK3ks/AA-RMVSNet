@@ -259,7 +259,6 @@ def train_sample(sample, detailed_summary=False):
         'evidential_prediction': evidential
     }
 
-    prob_volume = outputs['probability_volume']
     loss, depth_est, evidential_outputs = loss_der(outputs, depth_gt, mask, depth_value)
 
     loss.backward()

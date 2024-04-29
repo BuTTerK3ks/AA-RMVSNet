@@ -9,7 +9,7 @@ import time
 from datasets import find_dataset_def
 from models import *
 from utils import *
-from datasets.data_io import save_pfm
+from datasets.data_io import *
 import ast
 from collections import OrderedDict
 
@@ -115,26 +115,52 @@ def save_depth():
             total_time += one_time
             print('one forward: ', one_time)
             if count % 50 == 0:
-                print('avg time:', total_time / 50) 
+                print('avg time:', total_time / 50)
                 total_time = 0
 
             outputs = tensor2numpy(outputs)
             del sample_cuda
             print('Iter {}/{}'.format(batch_idx, len(TestImgLoader)))
             filenames = sample["filename"]
+            outputs = [outputs]
 
             # save depth maps and confidence maps
-            for filename, depth_est, photometric_confidence in zip(filenames, outputs["depth"],
-                                                                   outputs["photometric_confidence"]):
-                depth_filename = os.path.join(save_dir, filename.format('depth_est_{}'.format(0), '.pfm'))
-                confidence_filename = os.path.join(save_dir, filename.format('confidence_{}'.format(0), '.pfm'))
-                os.makedirs(depth_filename.rsplit('/', 1)[0], exist_ok=True)
-                os.makedirs(confidence_filename.rsplit('/', 1)[0], exist_ok=True)
+            for filename, output in zip(filenames, outputs):
+                depth_filename_pfm = os.path.join(save_dir, filename.format('depth_est_{}'.format(0), '.pfm'))
+                confidence_filename_pfm = os.path.join(save_dir, filename.format('confidence_{}'.format(0), '.pfm'))
+                depth_filename_png = os.path.join(save_dir, filename.format('depth_png_{}'.format(0), '.png'))
+                aleatoric_filename_png = os.path.join(save_dir, filename.format('aleatoric_{}'.format(0), '.png'))
+                epistemic_filename_png = os.path.join(save_dir, filename.format('epistemic_{}'.format(0), '.png'))
+
+                os.makedirs(depth_filename_pfm.rsplit('/', 1)[0], exist_ok=True)
+                os.makedirs(confidence_filename_pfm.rsplit('/', 1)[0], exist_ok=True)
+                os.makedirs(depth_filename_png.rsplit('/', 1)[0], exist_ok=True)
+                os.makedirs(aleatoric_filename_png.rsplit('/', 1)[0], exist_ok=True)
+                os.makedirs(epistemic_filename_png.rsplit('/', 1)[0], exist_ok=True)
+
+                depth_est = output["depth"]
+                photometric_confidence = output["photometric_confidence"]
+                evidential_prediction = output["evidential_prediction"]
+
+                gamma, nu, alpha, beta = evidential_prediction[0, :, :], evidential_prediction[1, :, :], evidential_prediction[2, :, :], evidential_prediction[3, :, :]
+
+                aleatoric_1 = np.sqrt(beta * (nu + 1) / nu / alpha)
+                epistemic_1 = 1. / np.sqrt(nu)
+
+                save_png(gamma, depth_filename_png, colormap='jet')
+                save_png(aleatoric_1, aleatoric_filename_png, colormap='hot')
+                save_png(epistemic_1, epistemic_filename_png, colormap='hot')
+
+
+
                 # save depth maps
                 print(depth_est.shape)
-                save_pfm(depth_filename, depth_est.squeeze())
+                save_pfm(depth_filename_pfm, gamma)
                 # save confidence maps
-                save_pfm(confidence_filename, photometric_confidence.squeeze())
+                save_pfm(confidence_filename_pfm, photometric_confidence.squeeze())
+
+
+
 
 
 

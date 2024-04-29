@@ -132,7 +132,7 @@ def read_tensors_from_pt_file(file_path):
     return tensor_dict
 
 if __name__ == "__main__":
-    file_path = "/home/grannemann/PycharmProjects/AA-RMVSNet/checkpoints/evidential/results/train/173850.pt"
+    file_path = "/home/grannemann/PycharmProjects/AA-RMVSNet/checkpoints/evidential_3ep/results/train/173850.pt"
     results = read_tensors_from_pt_file(file_path)
     create_filtered_heatmap(results)
     create_pixelwise_heatmap(results)

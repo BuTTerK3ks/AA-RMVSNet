@@ -310,16 +310,16 @@ class EMVSNet(nn.Module):
                     warped_volume = homo_warping_depthwise(src_fea, src_proj, ref_proj, depth_values[:, d])
                     warped_volume = (warped_volume - ref_volume).pow_(2)
                     reweight = self.omega(warped_volume)  # saliency
-
                     if warped_volumes is None:
                         warped_volumes = (reweight + 1) * warped_volume
                     else:
                         warped_volumes = warped_volumes + (reweight + 1) * warped_volume
 
                 volume_variance = warped_volumes / len(src_features)
-
                 cost_reg, hidden_state = self.cost_regularization(-1 * volume_variance, hidden_state, d)
                 cost_reg_list.append(cost_reg)
+
+
 
                 prob = torch.exp(cost_reg.squeeze(1))
                 depth = depth_values[:, d]  # B
@@ -338,7 +338,8 @@ class EMVSNet(nn.Module):
 
             conf = max_prob_image / forward_exp_sum
 
-            probability_volume = torch.stack(cost_reg_list, dim=1).squeeze(2)
+            prob_volume = torch.stack(cost_reg_list, dim=1).squeeze(2)
+            probability_volume = F.softmax(prob_volume, dim=1)  # get prob volume use for recurrent to decrease memory consumption
             evidential, prob_combine = self.evidential(probability_volume, depth_values)
 
             return {"depth": forward_depth_map, "photometric_confidence": conf, 'evidential_prediction': evidential}

@@ -1,6 +1,9 @@
 import numpy as np
 import re
+import matplotlib.pyplot as plt
+from matplotlib import cm
 import sys
+import os
 
 
 def read_pfm(filename):
@@ -69,3 +72,41 @@ def save_pfm(filename, image, scale=1):
 
     image.tofile(file)
     file.close()
+
+
+def save_png(array, filepath, colormap='hot'):
+    """
+    Exports a depth map from a given 2D numpy array to a PNG file using the specified colormap.
+    Normalizes the array to the [0, 1] range, handles None values by setting them to black, and filters values over 1000.
+
+    Parameters:
+        array (np.ndarray): A 2D numpy array representing the depth map.
+        filepath (str): The path to save the PNG image file.
+        colormap (str): The name of the colormap to use.
+    """
+    # Check for None, which is not natively supported in numpy arrays; assume input might be object type
+    if array.dtype == np.object:
+        array = np.where(array == None, 0, array).astype(float)  # Replace None with 0 and ensure type is float
+
+    # Ensure the array is a 2D numpy array
+    if array.ndim != 2:
+        raise ValueError("Input must be a 2D numpy array")
+
+    # Normalize the array to [0, 1]
+    array = array.astype(np.float32)  # Ensure array is float for processing
+    valid_mask = ~np.isnan(array)  # Mask to ignore NaN values in computation
+    min_val = array[valid_mask].min()
+    max_val = array[valid_mask].max()
+    array = (array - min_val) / (max_val - min_val)
+    array[~valid_mask] = 0  # Set NaN values to 0 (black)
+
+    # Scale the normalized values to [0, 255] for colormap
+    array = array
+
+    # Create the plot with the specified colormap and no axes for clarity
+    plt.imshow(array, cmap=colormap)
+    plt.axis('off')  # Turn off the axis
+
+    # Save the image to the specified filepath
+    plt.savefig(filepath, bbox_inches='tight', pad_inches=0)
+    plt.close()  # Close the plot to free up memory
