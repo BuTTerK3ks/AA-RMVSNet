@@ -1,6 +1,7 @@
 from evidential.plot import *
 from matplotlib import pyplot as plt
 import datetime
+import os
 
 
 current_datetime = datetime.datetime.now()
@@ -46,5 +47,10 @@ def save_pytorch(directory, mode, global_step, image_outputs, evidential_outputs
     del total_dict['epis_1']
     del total_dict['epis_2']
     path_to_store = directory + "/results/" + str(mode) + "/"
+
+    # Check if the directory exists, if not, create it
+    if not os.path.exists(path_to_store):
+        os.makedirs(path_to_store)
+
     filename = str(global_step)
     torch.save(total_dict, path_to_store + filename + '.pt')

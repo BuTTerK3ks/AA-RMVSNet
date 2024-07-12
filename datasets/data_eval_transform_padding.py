@@ -71,9 +71,13 @@ class MVSDataset(Dataset):
         # TODO Scale
         #intrinsics[:2, :] /= 4
         # depth_min & depth_interval: line 11
+        test1 = lines
+        test = lines[11]
         depth_min = float(lines[11].split()[0])
         depth_interval = float(lines[11].split()[1]) * self.interval_scale
+        #TODO Hardcoded for DTU
         depth_end = float(lines[11].split()[3])
+        #depth_end = 935
         return intrinsics, extrinsics, depth_min, depth_interval, depth_end
 
     def read_img(self, filename):

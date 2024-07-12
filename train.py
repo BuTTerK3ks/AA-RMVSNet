@@ -109,7 +109,7 @@ if SAVE_DEPTH:
 MVSDataset = find_dataset_def(args.dataset)
 train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", args.view_num, args.numdepth, args.interval_scale, args.inverse_depth, args.origin_size, -1, args.image_scale) # Training with False, Test with inverse_depth
 #val_dataset = MVSDataset(args.trainpath, args.vallist, "val", 5, args.numdepth, args.interval_scale, args.inverse_depth, args.origin_size, args.light_idx, args.image_scale) #view_num = 5, light_idx = 3
-test_dataset = MVSDataset(args.testpath, args.testlist, "test", 5, args.numdepth, args.interval_scale, args.inverse_depth, args.origin_size, args.light_idx, args.image_scale) # use 3
+test_dataset = MVSDataset(args.testpath, args.testlist, "test", args.view_num, args.numdepth, args.interval_scale, args.inverse_depth, args.origin_size, args.light_idx, args.image_scale) # use 3
 TrainImgLoader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_workers=12, drop_last=True)
 #ValImgLoader = DataLoader(val_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
@@ -124,6 +124,7 @@ print(f'Total Parameters: {total_params:,}')
 total_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 print(f'Training Parameters: {total_trainable_params:,}')
 
+'''
 if args.loadckpt:
 
     # load checkpoint file specified by args.loadckpt
@@ -144,9 +145,39 @@ if args.loadckpt:
 
 model = model.cuda()
 model = nn.parallel.DataParallel(model)
+'''
+
+
+
+if args.loadckpt:
+    # Load checkpoint file specified by args.loadckpt
+    print("loading model {}".format(args.loadckpt))
+
+    # Load the state dictionary
+    state_dict = torch.load(args.loadckpt)
+
+    # Check if keys have "module." prefix and remove it if necessary
+    new_state_dict = {}
+    for k, v in state_dict['model'].items():
+        if k.startswith("module."):
+            new_state_dict[k[7:]] = v  # remove "module." prefix
+        else:
+            new_state_dict[k] = v
+
+    # Load state dictionary into the model
+    model.load_state_dict(new_state_dict, strict=True)
+
+    # Wrap the model with DataParallel if necessary
+    model = nn.DataParallel(model)
+
+# Move model to GPU
+model = model.cuda()
+
 
 print('Optimizer: Adam \n')
 optimizer = optim.Adam(model.parameters(), lr=args.lr)
+
+
 
 # load parameters
 start_epoch = 0
@@ -174,11 +205,13 @@ print("start at epoch {}".format(start_epoch))
 # main function
 def train():
     print('run train()')
+
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=2e-06)
     ## get intermediate learning rate
     for _ in range(start_epoch):
         lr_scheduler.step()
     for epoch_idx in range(start_epoch, args.epochs):
+        '''
         
         print('Epoch {}/{}:'.format(epoch_idx, args.epochs))
 
@@ -217,6 +250,7 @@ def train():
 
         avg_test_scalars = DictAverageMeter()
         # TODO Hier wird nur bis x getestet
+        '''
         for batch_idx, sample in enumerate(TestImgLoader):
         #for batch_idx, sample in enumerate(islice(TestImgLoader, 0, 100, 1)):
             start_time = time.time()
@@ -227,11 +261,11 @@ def train():
                 save_scalars(logger, 'test', scalar_outputs, global_step)
                 save_images(logger, 'test', image_outputs, global_step)
                 save_pytorch(args.logdir, 'test', global_step, image_outputs, evidential_outputs)
-            avg_test_scalars.update(scalar_outputs)
+            #avg_test_scalars.update(scalar_outputs)
             
-            print('Epoch {}/{}, Iter {}/{}, test loss = {:.3f}, time = {:3f}, ame = {:3f}, thres2mm = {:3f}, thres4mm = {:3f}, thres8mm = {:3f}, thres16mm = {:3f}, thres32mm = {:3f}'.format(
+            print('Epoch: {}/{}, Iter: {}/{}, Views: {}, test loss = {:.3f}, time = {:3f}, ame = {:3f}, thres2mm = {:3f}, thres4mm = {:3f}, thres8mm = {:3f}, thres16mm = {:3f}, thres32mm = {:3f}'.format(
                                 epoch_idx, args.epochs, batch_idx,
-                                len(TestImgLoader), loss,
+                                len(TestImgLoader), args.view_num, loss,
                                 time.time() - start_time,
                                 scalar_outputs["abs_depth_error"], scalar_outputs["thres2mm_error"], 
                                 scalar_outputs["thres4mm_error"], scalar_outputs["thres8mm_error"],
@@ -239,8 +273,8 @@ def train():
 
             del image_outputs
 
-        save_scalars(logger, 'fulltest', avg_test_scalars.mean(), global_step)
-        print("avg_test_scalars:", avg_test_scalars.mean())
+        #save_scalars(logger, 'fulltest', avg_test_scalars.mean(), global_step)
+        #print("avg_test_scalars:", avg_test_scalars.mean())
 
 
 def train_sample(sample, detailed_summary=False):
