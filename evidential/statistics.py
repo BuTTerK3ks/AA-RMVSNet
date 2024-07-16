@@ -1407,19 +1407,19 @@ if __name__ == "__main__":
     #analyze_uncertainties(folder_path)
 
     # Example usage
-    directory_path = '/home/grannemann/Desktop/Blickwinkel'
-    plot_scene_precision_recall(directory_path)
+    #directory_path = '/home/grannemann/Desktop/Blickwinkel'
+    #plot_scene_precision_recall(directory_path)
 
-    '''
+
     file_path = "/home/grannemann/Desktop/3_test/1.pt"
     results = read_tensors_from_pt_file(file_path)
     #print(results.keys())
     #create_filtered_heatmap(results)
-    create_pixelwise_heatmap_error(results)
-    #create_pixelwise_heatmap_alea_epis(results)
+    #create_pixelwise_heatmap_error(results)
+    create_pixelwise_heatmap_alea_epis(results)
     #create_pixelwise_heatmap_alea_epis_single(results)
     #show_ref_image(results)
-    '''
+
 
 
 
