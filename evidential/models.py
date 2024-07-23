@@ -25,15 +25,10 @@ class Mish(nn.Module):
 
 def FMish(x):
     '''
-
     Applies the mish function element-wise:
-
     mish(x) = x * tanh(softplus(x)) = x * tanh(ln(1 + exp(x)))
-
     See additional documentation for mish class.
-
     '''
-
     return x * torch.tanh(F.softplus(x))
 
 
@@ -106,6 +101,8 @@ class HourGlassUp(nn.Module):
         self.redir3 = convbn_3d(
             in_channels * 4, in_channels * 4, kernel_size=1, stride=1, pad=0)
 
+        self.dropout = nn.Dropout3d(p=0.5)
+
     def forward(self, x, feature4, feature5):
         conv1 = self.conv1(x)  # 1/8
         conv1 = torch.cat((conv1, feature4), dim=1)  # 1/8
@@ -121,6 +118,9 @@ class HourGlassUp(nn.Module):
         conv7 = FMish(self.redir3(conv4))
         conv8 = FMish(self.conv8(conv7) + self.redir2(conv2))
         conv9 = FMish(self.conv9(conv8) + self.redir1(x))
+
+        # Apply dropout
+        conv9 = self.dropout(conv9)
 
         return conv9
 
@@ -156,6 +156,8 @@ class HourGlass(nn.Module):
         self.redir2 = convbn_3d(
             in_channels * 2, in_channels * 2, kernel_size=1, stride=1, pad=0)
 
+        self.dropout = nn.Dropout3d(p=0.5)
+
     def forward(self, x):
         conv1 = self.conv1(x)
         conv2 = self.conv2(conv1)
@@ -165,6 +167,9 @@ class HourGlass(nn.Module):
 
         conv5 = FMish(self.conv5(conv4) + self.redir2(conv2))
         conv6 = FMish(self.conv6(conv5) + self.redir1(x))
+
+        # Apply dropout
+        conv6 = self.dropout(conv6)
 
         return conv6
 
@@ -219,7 +224,7 @@ class EvidentialModule(nn.Module):
 
         # Output layer
         self.output_layer = nn.Conv2d(8, 4, kernel_size=1)
-        
+
         # Layout Mixed
         #_______________________________________________________________________________________________
         self.conv3d1 = nn.Conv3d(1, 16, kernel_size=(3, 3, 3), padding=(1, 1, 1))
@@ -241,7 +246,7 @@ class EvidentialModule(nn.Module):
         self.conv2d2 = nn.Conv2d
         '''
         # ELFNet inspired
-        #_______________________________________________________________________________________________
+        # _______________________________________________________________________________________________
         self.maxdisp = 32
 
         self.dres0 = nn.Sequential(convbn_3d(1, 32, 3, 1, 1),
@@ -255,12 +260,12 @@ class EvidentialModule(nn.Module):
                                    Mish())
 
         self.conv_vol2 = nn.Sequential(convbn_3d(1, 32, 3, 1, 1),
-                                   Mish(),
-                                   convbn_3d(32, 32, 3, 1, 1))
+                                       Mish(),
+                                       convbn_3d(32, 32, 3, 1, 1))
 
         self.conv_vol3 = nn.Sequential(convbn_3d(1, 32, 3, 1, 1),
-                                   Mish(),
-                                   convbn_3d(32, 32, 3, 1, 1))
+                                       Mish(),
+                                       convbn_3d(32, 32, 3, 1, 1))
 
         self.combine1 = HourGlassUp(32)
         self.dres2 = HourGlass(32)
@@ -278,6 +283,8 @@ class EvidentialModule(nn.Module):
                                       Mish(),
                                       nn.Conv3d(32, 4, kernel_size=3, padding=1, stride=1, bias=False))
 
+        self.dropout = nn.Dropout3d(p=0.5)
+
     def get_uncertainty(self, logv, logalpha, logbeta):
         v = self.evidence(logv)
         alpha = self.evidence(logalpha) + 1
@@ -291,7 +298,7 @@ class EvidentialModule(nn.Module):
         # u[la == 0] = (u1[la == 0] + u2[la == 0]) * 0.5
         alpha = alpha1 + alpha2 + 0.5
         beta = beta1 + beta2 + 0.5 * \
-            (la1 * (u1 - u) ** 2 + la2 * (u2 - u) ** 2)
+               (la1 * (u1 - u) ** 2 + la2 * (u2 - u) ** 2)
         return u, la, alpha, beta
 
     def combine_uncertainty(self, ests):
@@ -308,10 +315,10 @@ class EvidentialModule(nn.Module):
 
     def forward(self, input, depth_value):
         # Add a channel dimension for 3D convolution (N, C, D, H, W)
-        #x = input.unsqueeze(1)
+        # x = input.unsqueeze(1)
 
         # Layout 3D
-        #_______________________________________________________________________________________________
+        # _______________________________________________________________________________________________
         '''
 
         x = x.unsqueeze(1)  # Add channel dimension if not present
@@ -379,19 +386,17 @@ class EvidentialModule(nn.Module):
 
         x = input.unsqueeze(0)
 
-
         volume1 = F.interpolate(x, [self.maxdisp, input.size()[2], input.size()[
-                3]], mode='trilinear', align_corners=True)
+            3]], mode='trilinear', align_corners=True)
         volume1 = F.softmax(volume1, dim=2)
 
         volume2 = F.interpolate(x, [self.maxdisp // 2, input.size()[2] // 2, input.size()[
-                3] // 2], mode='trilinear', align_corners=True)
+            3] // 2], mode='trilinear', align_corners=True)
         volume2 = F.softmax(volume2, dim=2)
 
         volume3 = F.interpolate(x, [self.maxdisp // 4, input.size()[2] // 4, input.size()[
-                3] // 4], mode='trilinear', align_corners=True)
+            3] // 4], mode='trilinear', align_corners=True)
         volume3 = F.softmax(volume3, dim=1)
-
 
         cost0 = self.dres0(volume1)
         cost0 = self.dres1(cost0) + cost0
@@ -408,11 +413,10 @@ class EvidentialModule(nn.Module):
                 3]], mode='trilinear', align_corners=True)
             cost_upsample = torch.squeeze(cost_upsample, 1)
             prob = F.softmax(cost_upsample, dim=1)
-            #TODO Regression or classification based
+            # TODO Regression or classification based
             pred = disparity_regression(prob, depth_value)
-            #pred = disparity_classification(prob, depth_value)
+            # pred = disparity_classification(prob, depth_value)
             return pred, prob
-
 
         def get_logits(cost, prob):
             cost_upsample = F.interpolate(cost, [self.maxdisp, input.size()[2], input.size()[
@@ -456,6 +460,10 @@ class EvidentialModule(nn.Module):
         prob_combine = torch.stack((prob0, prob1, prob2))
         prob_combine = torch.mean(prob_combine, dim=0)
 
+        # Apply dropout
+        evidential = self.dropout(evidential)
+        prob_combine = self.dropout(prob_combine)
+
         return evidential, prob_combine
 
 
@@ -468,13 +476,14 @@ def criterion_uncertainty(u, la, alpha, beta, y, mask, weight_reg=0.1):
     loss = torch.sum(
         (0.5 * torch.log(np.pi / la) - alpha * torch.log(om) +
          (alpha + 0.5) * torch.log(la * (u - y) ** 2 + om) +
-         torch.lgamma(alpha) - torch.lgamma(alpha+0.5))[mask]
+         torch.lgamma(alpha) - torch.lgamma(alpha + 0.5))[mask]
     ) / torch.sum(mask == True)
 
     lossr = weight_reg * (torch.sum((torch.abs(u - y) * (2 * la + alpha))[mask])) / torch.sum(mask == True)
     loss = loss + lossr
 
     return loss
+
 
 def compute_uncertainty(self, u, la, alpha, beta):
     aleatoric = beta / (alpha - 1)
@@ -483,12 +492,13 @@ def compute_uncertainty(self, u, la, alpha, beta):
 
 
 def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
-
     evidential_prediction = outputs['evidential_prediction']
     probability_volume = outputs['probability_volume']
 
     # get EDL parameters
-    gamma, nu, alpha, beta = evidential_prediction[0, :, :], evidential_prediction[1, :, :], evidential_prediction[2, :, :], evidential_prediction[3, :, :]
+    gamma, nu, alpha, beta = evidential_prediction[0, :, :], evidential_prediction[1, :, :], evidential_prediction[2, :,
+                                                                                             :], evidential_prediction[
+                                                                                                 3, :, :]
     gamma = torch.unsqueeze(gamma, 0)
     nu = torch.unsqueeze(nu, 0)
     alpha = torch.unsqueeze(alpha, 0)
@@ -496,7 +506,7 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
 
     loss = criterion_uncertainty(gamma, nu, alpha, beta, depth_gt, mask, weight_reg=0.1)
 
-    #TODO Analyze the difference in performance
+    # TODO Analyze the difference in performance
     # get aleatoric and epistemic uncertainty
     # method from "unreasonable effective der"
     aleatoric_1 = torch.sqrt(beta * (nu + 1) / nu / alpha)
@@ -521,3 +531,20 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     }
 
     return loss, gamma, evidential
+
+
+def monte_carlo_dropout(model, x, depth_value, n_samples=10):
+    model.train()  # Set the model to training mode to enable dropout
+    predictions = []
+
+    for _ in range(n_samples):
+        with torch.no_grad():
+            evidential, prob_combine = model(x, depth_value)
+        predictions.append(evidential)
+
+    # Stack predictions to compute the mean and variance
+    predictions = torch.stack(predictions)
+    mean_prediction = predictions.mean(dim=0)
+    variance_prediction = predictions.var(dim=0)
+
+    return mean_prediction, variance_prediction
