@@ -1122,7 +1122,95 @@ def analyze_uncertainties(folder_path):
         plt.tight_layout()
         plt.show()
 
-    plot_error_distribution(files)
+    #plot_error_distribution(files)
+
+    def plot_uncertainty_heatmap_with_roc(files, threshold_values, save_folder):
+        """
+        Generate a pseudo ROC analysis for each scene based on specified error thresholds,
+        filtering out zero errors and adjusting uncertainty threshold to include 90% of data.
+
+        Parameters:
+            files (list): List of file paths.
+            threshold_values (list): List of thresholds for error classification.
+            save_folder (str): Path to the folder where the plots will be saved.
+        """
+
+        def read_and_mask(file):
+            data = read_tensors_from_pt_file(file)
+            errors = data['error_map'].flatten()
+            aleatoric_1 = data['aleatoric_1'].flatten()
+            epistemic_1 = data['epistemic_1'].flatten()
+            aleatoric_2 = data['aleatoric_2'].flatten()
+            epistemic_2 = data['epistemic_2'].flatten()
+            mask = data['mask'].bool().flatten()
+
+            errors = errors[mask]
+            aleatoric_1 = aleatoric_1[mask]
+            epistemic_1 = epistemic_1[mask]
+            aleatoric_2 = aleatoric_2[mask]
+            epistemic_2 = epistemic_2[mask]
+
+            return errors, aleatoric_1, epistemic_1, aleatoric_2, epistemic_2, os.path.basename(file).split('.')[0]
+
+        def plot_roc_combined(errors, uncertainty_1, uncertainty_2, threshold_values, uncertainty_type, scene,
+                              save_folder):
+            for threshold in threshold_values:
+                labels = errors < threshold  # True (1) if error is below threshold, False (0) otherwise
+
+                # Calculate ROC for Method 1
+                tpr_1, fpr_1, _ = roc_curve(labels, uncertainty_1)
+                roc_auc_1 = auc(fpr_1, tpr_1)
+
+                # Calculate ROC for Method 2
+                tpr_2, fpr_2, _ = roc_curve(labels, uncertainty_2)
+                roc_auc_2 = auc(fpr_2, tpr_2)
+
+                # Create the plot with twin x-axes
+                fig, ax1 = plt.subplots(figsize=(10, 6))
+
+                # Plot ROC for Method 1
+                ax1.plot(fpr_1, tpr_1, label=f'AUC for Method 1: {roc_auc_1:.2f}', linestyle='-',
+                         color='blue')
+                ax1.set_xlabel('False Positive Rate')
+                ax1.set_ylabel('True Positive Rate')
+                ax1.set_title(f'{uncertainty_type} | Scene {scene} | Threshold {threshold} cm')
+                ax1.legend(loc='lower right')
+                ax1.grid(True)
+
+                # Plot ROC for Method 2
+                ax1.plot(fpr_2, tpr_2, label=f'AUC for Method 2: {roc_auc_2:.2f}', linestyle='-',
+                         color='green')
+                ax1.legend(loc='lower right')
+
+                # Add red diagonal line from (0, 0) to (1, 1)
+                ax1.plot([0, 1], [0, 1], color='red', linestyle='--')
+
+                # Add threshold text
+                ax1.text(0.5, -0.2, 'Threshold', ha='center', va='center', transform=ax1.transAxes, fontsize=12)
+
+                # Save the plot
+                plot_filename = f"{uncertainty_type}_Scene_{scene}_Threshold_{threshold}mm_ROC.png"
+                plot_path = os.path.join(save_folder, plot_filename)
+                plt.savefig(plot_path)
+                plt.close()
+
+        for file in files:
+            errors, aleatoric_1, epistemic_1, aleatoric_2, epistemic_2, scene = read_and_mask(file)
+
+            # Plot for aleatoric uncertainties
+            plot_roc_combined(errors, aleatoric_1, aleatoric_2, threshold_values, 'Aleatoric', scene, save_folder)
+
+            # Plot for epistemic uncertainties
+            plot_roc_combined(errors, epistemic_1, epistemic_2, threshold_values, 'Epistemic', scene, save_folder)
+
+            # Plot for combined uncertainties
+            combined_uncertainty_1 = aleatoric_1 + epistemic_1
+            combined_uncertainty_2 = aleatoric_2 + epistemic_2
+            plot_roc_combined(errors, combined_uncertainty_1, combined_uncertainty_2, threshold_values, 'Combined',
+                              scene, save_folder)
+
+    save_folder = '/home/grannemann/Desktop/figures/roc'
+    plot_uncertainty_heatmap_with_roc(files, [2, 4, 6], save_folder=save_folder)
 
     '''
     def plot_uncertainty_vs_error(errors, aleatoric, epistemic, scene):
@@ -1403,20 +1491,20 @@ def plot_scene_precision_recall(directory_path):
 
 if __name__ == "__main__":
 
-    #folder_path = "/home/grannemann/Desktop/3_test"
-    #analyze_uncertainties(folder_path)
+    folder_path = "/home/grannemann/Desktop/3_test"
+    analyze_uncertainties(folder_path)
 
     # Example usage
     #directory_path = '/home/grannemann/Desktop/Blickwinkel'
     #plot_scene_precision_recall(directory_path)
 
 
-    file_path = "/home/grannemann/Desktop/3_test/1.pt"
-    results = read_tensors_from_pt_file(file_path)
+    #file_path = "/home/grannemann/Desktop/3_test/1.pt"
+    #results = read_tensors_from_pt_file(file_path)
     #print(results.keys())
     #create_filtered_heatmap(results)
     #create_pixelwise_heatmap_error(results)
-    create_pixelwise_heatmap_alea_epis(results)
+    #create_pixelwise_heatmap_alea_epis(results)
     #create_pixelwise_heatmap_alea_epis_single(results)
     #show_ref_image(results)
 

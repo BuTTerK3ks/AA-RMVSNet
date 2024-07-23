@@ -74,7 +74,7 @@ def save_pfm(filename, image, scale=1):
     file.close()
 
 
-def save_png(array, filepath, colormap='hot'):
+def save_png(array, filepath, title="", mode="relative"):
     """
     Exports a depth map from a given 2D numpy array to a PNG file using the specified colormap.
     Normalizes the array to the [0, 1] range, handles None values by setting them to black, and filters values over 1000.
@@ -84,6 +84,8 @@ def save_png(array, filepath, colormap='hot'):
         filepath (str): The path to save the PNG image file.
         colormap (str): The name of the colormap to use.
     """
+    colormap = plt.cm.jet
+
     # Check for None, which is not natively supported in numpy arrays; assume input might be object type
     if array.dtype == np.object:
         array = np.where(array == None, 0, array).astype(float)  # Replace None with 0 and ensure type is float
@@ -92,20 +94,34 @@ def save_png(array, filepath, colormap='hot'):
     if array.ndim != 2:
         raise ValueError("Input must be a 2D numpy array")
 
-    # Normalize the array to [0, 1]
-    array = array.astype(np.float32)  # Ensure array is float for processing
-    valid_mask = ~np.isnan(array)  # Mask to ignore NaN values in computation
-    min_val = array[valid_mask].min()
-    max_val = array[valid_mask].max()
-    array = (array - min_val) / (max_val - min_val)
-    array[~valid_mask] = 0  # Set NaN values to 0 (black)
+    if mode == "depth":
+        # Invert the array values for depth mode
+        valid_mask = ~np.isnan(array)  # Mask to ignore NaN values in computation
+        min_val = array[valid_mask].min()
+        max_val = array[valid_mask].max()
+        array = (max_val - array) + min_val  # Invert the values and add min_val to avoid starting from 0
+        array = array * 10  # Scale the values by 10
+        array[~valid_mask] = 0  # Set NaN values to 0 (black)
 
-    # Scale the normalized values to [0, 255] for colormap
-    array = array
+    elif mode == "relative":
+        # Normalize the array to [0, 1]
+        array = array.astype(np.float32)  # Ensure array is float for processing
+        valid_mask = ~np.isnan(array)  # Mask to ignore NaN values in computation
+        min_val = array[valid_mask].min()
+        max_val = array[valid_mask].max()
+        array = (array - min_val) / (max_val - min_val)
+        array[~valid_mask] = 0  # Set NaN values to 0 (black)
+
 
     # Create the plot with the specified colormap and no axes for clarity
-    plt.imshow(array, cmap=colormap)
+    img = plt.imshow(array, cmap=colormap)
     plt.axis('off')  # Turn off the axis
+    plt.title(title)
+
+    # Create a colorbar without scale (numbers)
+    cbar = plt.colorbar(img)
+    if mode == "relative":
+        cbar.set_ticks([])  # Removes the ticks
 
     # Save the image to the specified filepath
     plt.savefig(filepath, bbox_inches='tight', pad_inches=0)
