@@ -17,6 +17,7 @@ import sys
 import datetime
 import ast
 from datasets.data_io import *
+import os
 
 from evidential.models import *
 from evidential.save import *
@@ -170,6 +171,8 @@ if args.loadckpt:
     # Wrap the model with DataParallel if necessary
     model = nn.DataParallel(model)
 
+# Only make GPU 1 availible
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 # Move model to GPU
 model = model.cuda()
 
@@ -211,7 +214,6 @@ def train():
     for _ in range(start_epoch):
         lr_scheduler.step()
     for epoch_idx in range(start_epoch, args.epochs):
-        '''
         
         print('Epoch {}/{}:'.format(epoch_idx, args.epochs))
 
@@ -250,7 +252,7 @@ def train():
 
         avg_test_scalars = DictAverageMeter()
         # TODO Hier wird nur bis x getestet
-        '''
+
         for batch_idx, sample in enumerate(TestImgLoader):
         #for batch_idx, sample in enumerate(islice(TestImgLoader, 0, 100, 1)):
             start_time = time.time()
