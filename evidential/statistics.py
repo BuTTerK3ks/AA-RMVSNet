@@ -1042,6 +1042,17 @@ def analyze_uncertainties(folder_path):
         errors_aleatoric = np.array(errors_aleatoric)
         errors_epistemic = np.array(errors_epistemic)
 
+        # Define a function to filter values outside the 5th and 95th percentiles
+        def filter_extremes(predicted_uncertainty, errors):
+            lower_bound = np.percentile(predicted_uncertainty, 2)
+            upper_bound = np.percentile(predicted_uncertainty, 98)
+            mask = (predicted_uncertainty >= lower_bound) & (predicted_uncertainty <= upper_bound)
+            return predicted_uncertainty[mask], errors[mask]
+
+        # Filter out extreme values for aleatoric and epistemic uncertainties
+        aleatoric_1, errors_aleatoric = filter_extremes(aleatoric_1, errors_aleatoric)
+        epistemic_1, errors_epistemic = filter_extremes(epistemic_1, errors_epistemic)
+
         def plot_calibration(predicted_uncertainty, errors, title, color):
             # Bin data
             bin_means, bin_edges, _ = binned_statistic(predicted_uncertainty, errors, statistic='mean', bins=bins)
@@ -1056,7 +1067,7 @@ def analyze_uncertainties(folder_path):
         plt.figure(figsize=(14, 7))
 
         plt.subplot(1, 2, 1)
-        plot_calibration(aleatoric_1, errors_aleatoric, 'Aleatoric Uncertainty Calibration', 'blue')
+        plot_calibration(aleatoric_1, errors_aleatoric, 'Aleatoric uncertainty Calibration', 'blue')
 
         # Plot Calibration for Epistemic Uncertainty
         plt.subplot(1, 2, 2)
@@ -1065,7 +1076,7 @@ def analyze_uncertainties(folder_path):
         plt.tight_layout()
         plt.show()
 
-    #calibration_plot(files)
+    calibration_plot(files)
 
     def plot_error_distribution(files):
         """
@@ -1376,10 +1387,13 @@ def analyze_uncertainties(folder_path):
 
 
 
+
+
+
 def plot_scene_precision_recall(directory_path):
     """
     Generate a pseudo precision-recall analysis for each scene based on a fixed threshold of 4mm,
-    filtering out zero errors and adjusting uncertainty threshold to include 90% of data.
+    filtering out the top and lowest 2 percent to exclude outliers.
 
     Parameters:
         directory_path (str): Path to the directory containing the data files.
@@ -1408,6 +1422,18 @@ def plot_scene_precision_recall(directory_path):
 
         return errors, aleatoric_1, epistemic_1, os.path.basename(os.path.dirname(os.path.dirname(file)))
 
+    def filter_percentiles(errors, uncertainty_1, lower_percentile=2, upper_percentile=98):
+        lower_bound = np.percentile(uncertainty_1, lower_percentile)
+        upper_bound = np.percentile(uncertainty_1, upper_percentile)
+        mask = (uncertainty_1 >= lower_bound) & (uncertainty_1 <= upper_bound)
+        return errors[mask], uncertainty_1[mask]
+
+    def filter_lowest_percentiles(precision, recall, uncertainty, lower_percentile=0.5):
+        lower_bound_precision = np.percentile(precision, lower_percentile)
+        lower_bound_recall = np.percentile(recall, lower_percentile)
+        mask = (precision >= lower_bound_precision) & (recall >= lower_bound_recall)
+        return precision[mask], recall[mask], uncertainty[mask]
+
     def plot_precision_recall_combined(all_data, threshold, uncertainty_type):
         fig, ax1 = plt.subplots(figsize=(12, 8))
 
@@ -1416,24 +1442,23 @@ def plot_scene_precision_recall(directory_path):
         for idx, (scene, data) in enumerate(all_data.items()):
             errors, uncertainty_1 = data
 
-            labels = errors < threshold  # True (1) if error is below threshold, False (0) otherwise
-
             # Sort data by increasing uncertainty
             sorted_indices_1 = np.argsort(uncertainty_1)
-            sorted_labels_1 = labels[sorted_indices_1]
+            sorted_errors = errors[sorted_indices_1]
             sorted_uncertainty_1 = uncertainty_1[sorted_indices_1]
 
-            # Determine the uncertainty threshold to include 90% of data
-            index_90_percent_1 = int(0.9 * len(sorted_uncertainty_1))
+            # Filter out the top and lowest 2 percent to exclude outliers
+            sorted_errors, sorted_uncertainty_1 = filter_percentiles(sorted_errors, sorted_uncertainty_1, 2, 98)
 
-            # Calculate precision and recall up to the 90% uncertainty threshold
-            cum_true_positives_1 = np.cumsum(sorted_labels_1)
-            precision_1 = cum_true_positives_1 / np.arange(1, len(sorted_labels_1) + 1)
+            labels = sorted_errors < threshold  # True (1) if error is below threshold, False (0) otherwise
+
+            # Calculate precision and recall
+            cum_true_positives_1 = np.cumsum(labels)
+            precision_1 = cum_true_positives_1 / np.arange(1, len(labels) + 1)
             recall_1 = cum_true_positives_1 / cum_true_positives_1[-1]
 
-            sorted_uncertainty_1 = sorted_uncertainty_1[:index_90_percent_1 + 1]
-            precision_1 = precision_1[:index_90_percent_1 + 1]
-            recall_1 = recall_1[:index_90_percent_1 + 1]
+            # Filter out the lowest 0.5 percent of precision and recall values
+            precision_1, recall_1, sorted_uncertainty_1 = filter_lowest_percentiles(precision_1, recall_1, sorted_uncertainty_1, 0.2)
 
             # Plot for each scene
             ax1.plot(sorted_uncertainty_1, precision_1, linestyle='--', label=f'{scene} - Precision', color=colors[idx])
@@ -1441,7 +1466,7 @@ def plot_scene_precision_recall(directory_path):
 
         ax1.set_xlabel('Uncertainty [mm]')
         ax1.set_ylabel('Precision / Recall')
-        ax1.set_title(f'{uncertainty_type} Precision-Recall Analysis (Threshold {threshold}0 mm)')
+        ax1.set_title(f'{uncertainty_type} Precision-Recall Analysis (Threshold {threshold} mm)')
         handles, labels = ax1.get_legend_handles_labels()
         unique_labels = dict(zip(labels, handles))
         def get_key_number(key):
@@ -1488,15 +1513,14 @@ def plot_scene_precision_recall(directory_path):
     combined_uncertainty_1 = {scene: all_aleatoric_1[scene] + all_epistemic_1[scene] for scene in all_errors}
     plot_precision_recall_combined({scene: (all_errors[scene], combined_uncertainty_1[scene]) for scene in all_errors}, fixed_threshold, 'Combined')
 
-
 if __name__ == "__main__":
 
     folder_path = "/home/grannemann/Desktop/3_test"
-    analyze_uncertainties(folder_path)
+    #analyze_uncertainties(folder_path)
 
     # Example usage
-    #directory_path = '/home/grannemann/Desktop/Blickwinkel'
-    #plot_scene_precision_recall(directory_path)
+    directory_path = '/home/grannemann/Desktop/Blickwinkel'
+    plot_scene_precision_recall(directory_path)
 
 
     #file_path = "/home/grannemann/Desktop/3_test/1.pt"

@@ -373,19 +373,3 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
 
     return loss, gamma, evidential
 
-
-def monte_carlo_dropout(model, x, depth_value, n_samples=10):
-    model.train()  # Set the model to training mode to enable dropout
-    predictions = []
-
-    for _ in range(n_samples):
-        with torch.no_grad():
-            evidential, prob_combine = model(x, depth_value)
-        predictions.append(evidential)
-
-    # Stack predictions to compute the mean and variance
-    predictions = torch.stack(predictions)
-    mean_prediction = predictions.mean(dim=0)
-    variance_prediction = predictions.var(dim=0)
-
-    return mean_prediction, variance_prediction

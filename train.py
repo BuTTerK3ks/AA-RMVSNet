@@ -1,5 +1,7 @@
 import argparse
 import os
+import pickle
+
 import torch
 import torch.nn as nn
 import torch.nn.parallel
@@ -108,10 +110,10 @@ if SAVE_DEPTH:
 
 
 MVSDataset = find_dataset_def(args.dataset)
-train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", args.view_num, args.numdepth, args.interval_scale, args.inverse_depth, args.origin_size, -1, args.image_scale) # Training with False, Test with inverse_depth
+#train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", args.view_num, args.numdepth, args.interval_scale, args.inverse_depth, args.origin_size, -1, args.image_scale) # Training with False, Test with inverse_depth
 #val_dataset = MVSDataset(args.trainpath, args.vallist, "val", 5, args.numdepth, args.interval_scale, args.inverse_depth, args.origin_size, args.light_idx, args.image_scale) #view_num = 5, light_idx = 3
 test_dataset = MVSDataset(args.testpath, args.testlist, "test", args.view_num, args.numdepth, args.interval_scale, args.inverse_depth, args.origin_size, args.light_idx, args.image_scale) # use 3
-TrainImgLoader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_workers=12, drop_last=True)
+#TrainImgLoader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_workers=12, drop_last=True)
 #ValImgLoader = DataLoader(val_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 # Use test set (with gt depths) for validation
@@ -175,13 +177,14 @@ if args.loadckpt:
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 # Move model to GPU
 model = model.cuda()
+start_epoch = 0
 
 
 print('Optimizer: Adam \n')
 optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
 
-
+'''
 # load parameters
 start_epoch = 0
 if (args.mode == "train" and args.resume):
@@ -197,23 +200,60 @@ if (args.mode == "train" and args.resume):
 
     start_epoch = state_dict['epoch'] + 1
 
-elif args.loadckpt:
-    # load checkpoint file specified by args.loadckpt
+def remove_module_from_state_dict(state_dict):
+    """Remove 'module.' prefix from state dict keys."""
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        if k.startswith('module.'):
+            new_state_dict[k[7:]] = v  # remove 'module.' prefix
+        else:
+            new_state_dict[k] = v
+    return new_state_dict
+
+def add_module_to_state_dict(state_dict):
+    """Add 'module.' prefix to state dict keys."""
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        if not k.startswith('module.'):
+            new_state_dict['module.' + k] = v  # add 'module.' prefix
+        else:
+            new_state_dict[k] = v
+    return new_state_dict
+
+if args.loadckpt:
+    # Load checkpoint file specified by args.loadckpt
     print("loading model {}".format(args.loadckpt))
-    state_dict = torch.load(args.loadckpt)
-    model.load_state_dict(state_dict['model'])
+    state_dict = torch.load(args.loadckpt)['model']
+
+    # Check if the model is wrapped with DataParallel
+    if isinstance(model, nn.DataParallel):
+        state_dict = add_module_to_state_dict(state_dict)
+    else:
+        state_dict = remove_module_from_state_dict(state_dict)
+
+    model.load_state_dict(state_dict)
+    
+
+
 print("start at epoch {}".format(start_epoch))
+
+'''
+
+
 
 
 # main function
 def train():
     print('run train()')
 
+
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=2e-06)
     ## get intermediate learning rate
     for _ in range(start_epoch):
         lr_scheduler.step()
     for epoch_idx in range(start_epoch, args.epochs):
+
+        '''
         
         print('Epoch {}/{}:'.format(epoch_idx, args.epochs))
 
@@ -222,7 +262,10 @@ def train():
         # training
         #TODO Hier wird nur bis x trainiert
         for batch_idx, sample in enumerate(TrainImgLoader):
-        #for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 100, 1)):
+            # for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 100, 1)):
+            if not isinstance(sample, dict):
+                print(f"Skipping batch {batch_idx} because sample is not a dictionary.")
+                continue
             start_time = time.time()
             global_step = len(TrainImgLoader) * epoch_idx + batch_idx
             do_summary = (global_step % args.summary_freq == 0)
@@ -252,13 +295,53 @@ def train():
 
         avg_test_scalars = DictAverageMeter()
         # TODO Hier wird nur bis x getestet
+        '''
+
+        num_samples = 1
+        save_folder = '/home/grannemann/PycharmProjects/AA-RMVSNet/outputs_dtu/evidential'  # Define the folder to save results
+
 
         for batch_idx, sample in enumerate(TestImgLoader):
         #for batch_idx, sample in enumerate(islice(TestImgLoader, 0, 100, 1)):
             start_time = time.time()
             global_step = len(TestImgLoader) * epoch_idx + batch_idx
             do_summary = global_step % args.summary_freq == 0
-            loss, scalar_outputs, image_outputs, evidential_outputs = test_sample(sample, detailed_summary=do_summary)
+
+
+
+            # Initialize lists to store multiple predictions
+            losses = []
+            scalar_outputs_list = []
+            image_outputs_list = []
+            evidential_outputs_list = []
+
+            for _ in range(num_samples):
+                loss, scalar_outputs, image_outputs, evidential_outputs = test_sample(sample, detailed_summary=do_summary)
+                losses.append(loss)
+                scalar_outputs_list.append(scalar_outputs)
+                image_outputs_list.append(image_outputs)
+                evidential_outputs_list.append(evidential_outputs)
+
+            # Save the lists in a dictionary
+            results_dict = {
+                'losses': losses,
+                'scalar_outputs_list': scalar_outputs_list,
+                'image_outputs_list': image_outputs_list,
+                'evidential_outputs_list': evidential_outputs_list
+            }
+
+            # Define the save path for the current batch
+            save_path = os.path.join(save_folder, f'batch_{batch_idx}.pkl')
+
+            # Save the dictionary as a pickle file
+            with open(save_path, 'wb') as f:
+                pickle.dump(results_dict, f)
+
+            end_time = time.time()
+            print("Time for batch {}: {:.3f}s".format(batch_idx, end_time - start_time))
+
+            '''
+
             if do_summary:
                 save_scalars(logger, 'test', scalar_outputs, global_step)
                 save_images(logger, 'test', image_outputs, global_step)
@@ -274,6 +357,7 @@ def train():
                                 scalar_outputs["thres16mm_error"], scalar_outputs["thres32mm_error"]))
 
             del image_outputs
+            '''
 
         #save_scalars(logger, 'fulltest', avg_test_scalars.mean(), global_step)
         #print("avg_test_scalars:", avg_test_scalars.mean())
@@ -341,7 +425,8 @@ def train_sample(sample, detailed_summary=False):
 
 @make_nograd_func
 def test_sample(sample, detailed_summary=True):
-    model.eval()
+    # Changes to incorporate MCD
+    model.train()
     sample_cuda = tocuda(sample)
     depth_gt = sample_cuda["depth"]
     mask = sample_cuda["mask"]

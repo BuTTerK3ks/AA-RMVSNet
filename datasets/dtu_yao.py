@@ -106,77 +106,82 @@ class MVSDataset(Dataset):
         
 
     def __getitem__(self, idx):
-        
-        meta = self.metas[idx]
-        scan, light_idx, ref_view, src_views, flip_flag = meta
-        # use only the reference view and first nviews-1 source views
-        view_ids = [ref_view] + src_views[:self.nviews - 1]
 
-        imgs = []
-        imgs_original = []
-        mask = None
-        depth = None
-        depth_values = None
-        proj_matrices = []
-        for i, vid in enumerate(view_ids):
-            # NOTE that the id in image file names is from 1 to 49 (not 0~48)
-            img_filename = os.path.join(self.datapath,
-                                        'Rectified/{}_train/rect_{:0>3}_{}_r5000.png'.format(scan, vid + 1, light_idx))
-            if self.image_scale == 1.0:
-                depth_filename = os.path.join(self.datapath, '../640_depth/{}/depth_map_{:0>4}.pfm'.format(scan, vid))
-                mask_filename = os.path.join(self.datapath, '../640_depth/{}/depth_map_{:0>4}_mask.png'.format(scan, vid))
-            elif self.image_scale == 0.5:
-                depth_filename = os.path.join(self.datapath, '../320_depth/{}/depth_map_{:0>4}_4.pfm'.format(scan, vid))
-                mask_filename = os.path.join(self.datapath, '../320_depth/{}/depth_map_{:0>4}_mask_4.png'.format(scan, vid))
-            else:
-                depth_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_map_{:0>4}.pfm'.format(scan, vid))
-                mask_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_visual_{:0>4}.png'.format(scan, vid))
+        try:
 
-            
-            proj_mat_filename = os.path.join(self.datapath, 'Cameras/train/{:0>8}_cam.txt').format(vid)
-            if i == 0:
-                depth_name = depth_filename
-            imgs.append(self.read_img(img_filename))
-            imgs_original.append(self.read_original_img(img_filename))
-            intrinsics, extrinsics, depth_min, depth_interval = self.read_cam_file(proj_mat_filename)
+            meta = self.metas[idx]
+            scan, light_idx, ref_view, src_views, flip_flag = meta
+            # use only the reference view and first nviews-1 source views
+            view_ids = [ref_view] + src_views[:self.nviews - 1]
 
-            # multiply intrinsics and extrinsics to get projection matrix
-            proj_mat = extrinsics.copy()
-            proj_mat[:3, :4] = np.matmul(intrinsics, proj_mat[:3, :4])
-            proj_matrices.append(proj_mat)
-
-            if i == 0:  # reference view
-                if not self.fix_range:
-                    depth_end = depth_interval * (self.ndepths-1) + depth_min # sample: 0:n-1
+            imgs = []
+            imgs_original = []
+            mask = None
+            depth = None
+            depth_values = None
+            proj_matrices = []
+            for i, vid in enumerate(view_ids):
+                # NOTE that the id in image file names is from 1 to 49 (not 0~48)
+                img_filename = os.path.join(self.datapath,
+                                            'Rectified/{}_train/rect_{:0>3}_{}_r5000.png'.format(scan, vid + 1, light_idx))
+                if self.image_scale == 1.0:
+                    depth_filename = os.path.join(self.datapath, '../640_depth/{}/depth_map_{:0>4}.pfm'.format(scan, vid))
+                    mask_filename = os.path.join(self.datapath, '../640_depth/{}/depth_map_{:0>4}_mask.png'.format(scan, vid))
+                elif self.image_scale == 0.5:
+                    depth_filename = os.path.join(self.datapath, '../320_depth/{}/depth_map_{:0>4}_4.pfm'.format(scan, vid))
+                    mask_filename = os.path.join(self.datapath, '../320_depth/{}/depth_map_{:0>4}_mask_4.png'.format(scan, vid))
                 else:
-                    depth_end = 935 # pre-defined in DTU dataset
-                if self.inverse_depth: #slice inverse depth
-                    print('inverse depth')
-                    depth_values = np.linspace(1.0 / depth_min, 1.0 / depth_end, self.ndepths)
-                    depth_values = 1.0 / depth_values
-                    depth_values = depth_values.astype(np.float32)
-                else:
-                    depth_values = np.linspace(depth_min, depth_end, self.ndepths)
-                    depth_values = depth_values.astype(np.float32)
-                    
-                    #depth_values = np.concatenate((depth_values,depth_values[::-1]),axis=0)
-                    
-                #mask = self.read_img(mask_filename)
-                depth = self.read_depth(depth_filename)
-                #mask = np.array((depth > depth_min+depth_interval) & (depth < depth_min+(self.ndepths-2)*depth_interval), dtype=np.float32)
-                mask = np.array((depth >= depth_min) & (depth <= depth_end), dtype=np.float32)
-        imgs = np.stack(imgs).transpose([0, 3, 1, 2])
-        imgs_original = np.stack(imgs_original).transpose([0, 3, 1, 2])
-        proj_matrices = np.stack(proj_matrices)
+                    depth_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_map_{:0>4}.pfm'.format(scan, vid))
+                    mask_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_visual_{:0>4}.png'.format(scan, vid))
 
-        if (flip_flag and self.both) or (self.reverse and not self.both):
-            depth_values = np.array([depth_values[len(depth_values)-i-1]for i in range(len(depth_values))])
-        
-        return {"imgs": imgs,
-                "imgs_original": imgs_original,
-                "proj_matrices": proj_matrices,
-                "depth": depth,
-                "depth_values": depth_values, # generate depth index
-                "mask": mask,
-                "depth_interval": depth_interval,
-                'name':depth_name,}
+
+                proj_mat_filename = os.path.join(self.datapath, 'Cameras/train/{:0>8}_cam.txt').format(vid)
+                if i == 0:
+                    depth_name = depth_filename
+                imgs.append(self.read_img(img_filename))
+                imgs_original.append(self.read_original_img(img_filename))
+                intrinsics, extrinsics, depth_min, depth_interval = self.read_cam_file(proj_mat_filename)
+
+                # multiply intrinsics and extrinsics to get projection matrix
+                proj_mat = extrinsics.copy()
+                proj_mat[:3, :4] = np.matmul(intrinsics, proj_mat[:3, :4])
+                proj_matrices.append(proj_mat)
+
+                if i == 0:  # reference view
+                    if not self.fix_range:
+                        depth_end = depth_interval * (self.ndepths-1) + depth_min # sample: 0:n-1
+                    else:
+                        depth_end = 935 # pre-defined in DTU dataset
+                    if self.inverse_depth: #slice inverse depth
+                        print('inverse depth')
+                        depth_values = np.linspace(1.0 / depth_min, 1.0 / depth_end, self.ndepths)
+                        depth_values = 1.0 / depth_values
+                        depth_values = depth_values.astype(np.float32)
+                    else:
+                        depth_values = np.linspace(depth_min, depth_end, self.ndepths)
+                        depth_values = depth_values.astype(np.float32)
+
+                        #depth_values = np.concatenate((depth_values,depth_values[::-1]),axis=0)
+
+                    #mask = self.read_img(mask_filename)
+                    depth = self.read_depth(depth_filename)
+                    #mask = np.array((depth > depth_min+depth_interval) & (depth < depth_min+(self.ndepths-2)*depth_interval), dtype=np.float32)
+                    mask = np.array((depth >= depth_min) & (depth <= depth_end), dtype=np.float32)
+            imgs = np.stack(imgs).transpose([0, 3, 1, 2])
+            imgs_original = np.stack(imgs_original).transpose([0, 3, 1, 2])
+            proj_matrices = np.stack(proj_matrices)
+
+            if (flip_flag and self.both) or (self.reverse and not self.both):
+                depth_values = np.array([depth_values[len(depth_values)-i-1]for i in range(len(depth_values))])
+
+            return {"imgs": imgs,
+                    "imgs_original": imgs_original,
+                    "proj_matrices": proj_matrices,
+                    "depth": depth,
+                    "depth_values": depth_values, # generate depth index
+                    "mask": mask,
+                    "depth_interval": depth_interval,
+                    'name':depth_name,}
+        except:
+            print("Error reading set")
+            return "Faulty set"
