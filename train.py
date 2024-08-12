@@ -16,6 +16,7 @@ import sys
 import datetime
 import ast
 from datasets.data_io import *
+from collections import OrderedDict
 
 cudnn.benchmark = True
 
@@ -134,24 +135,44 @@ if (args.mode == "train" and args.resume):
     print(optimizer)
 
     start_epoch = state_dict['epoch'] + 1
+
 elif args.loadckpt:
     # load checkpoint file specified by args.loadckpt
     print("loading model {}".format(args.loadckpt))
+
+    # Load the entire checkpoint
     state_dict = torch.load(args.loadckpt)
-    model.load_state_dict(state_dict['model'])
-print("start at epoch {}".format(start_epoch))
+
+    # Check if the state_dict keys are prefixed with 'module.'
+    new_state_dict = OrderedDict()
+    for k, v in state_dict['model'].items():
+        if k.startswith('module.'):
+            # Remove the 'module.' prefix
+            name = k[7:]  # Remove the 'module.' part of the key
+        else:
+            name = k
+        new_state_dict[name] = v
+
+    try:
+        # Load the updated state_dict into the model
+        model.load_state_dict(new_state_dict)
+        print("Model loaded successfully")
+    except RuntimeError as e:
+        print("Error(s) in loading state_dict: ", e)
+
+    print("start at epoch {}".format(state_dict.get('epoch', 0)))  # if 'epoch' is stored in state_dict
 
 # main function
 def train():
     print('run train()')
+
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=2e-06)
     ## get intermediate learning rate
     for _ in range(start_epoch):
         lr_scheduler.step()
     for epoch_idx in range(start_epoch, args.epochs):
-        
         print('Epoch {}/{}:'.format(epoch_idx, args.epochs))
-
+        '''
         lr_scheduler.step()
         global_step = len(TrainImgLoader) * epoch_idx
         print('Start Training')
@@ -182,7 +203,7 @@ def train():
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict()},
                 "{}/model_{:0>6}.ckpt".format(args.logdir, epoch_idx))
-
+            '''
     
         avg_test_scalars = DictAverageMeter()
         for batch_idx, sample in enumerate(TestImgLoader):
