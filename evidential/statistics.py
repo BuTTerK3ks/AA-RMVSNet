@@ -110,24 +110,36 @@ def create_pixelwise_heatmap_alea_epis_single(data_dict):
         # Mask invalid values (NaNs)
         to_show = prediction[0]
 
-        # Calculate valid min and max values for color scaling
-        vmin = np.nanmin(to_show)
-        vmax = np.nanmax(to_show)
+        # Flatten the array and sort to identify the cutoffs for the top and bottom 2%
+        flat_data = to_show.flatten()
+        flat_data_sorted = np.sort(flat_data)
+
+        lower_cutoff = flat_data_sorted[int(len(flat_data_sorted) * 0.01)]
+        upper_cutoff = flat_data_sorted[int(len(flat_data_sorted) * 0.99)]
+
+        # Clip the data to the calculated cutoffs
+        to_show_clipped = np.clip(to_show, lower_cutoff, upper_cutoff)
+
+        # Calculate valid min and max values for color scaling based on the clipped data
+        vmin = np.nanmin(to_show_clipped)
+        vmax = np.nanmax(to_show_clipped)
 
         # Display the heatmap
-        img = plt.imshow(to_show, cmap=plt.cm.jet, vmin=vmin, vmax=vmax)  # Added vmin and vmax
+        img = plt.imshow(to_show_clipped, cmap=plt.cm.jet, vmin=vmin, vmax=vmax)
         if mode == "aleatoric_1":
-            plt.title("Relative: Aleatoric 1")
+            plt.title("EMVSNet: Aleatoric [mm]")
         if mode == "epistemic_1":
-            plt.title("Relative: Epistemic 1")
+            plt.title("EMVSNet: Epistemic [mm]")
         if mode == "aleatoric_2":
-            plt.title("Relative: Aleatoric 2")
+            plt.title("Alternative: Aleatoric [mm]")
         if mode == "epistemic_2":
-            plt.title("Relative: Epistemic 2")
+            plt.title("Alternative: Epistemic [mm]")
 
         # Create a colorbar without scale (numbers)
         cbar = plt.colorbar(img)
-        cbar.set_ticks([])  # Removes the ticks
+        #cbar.set_label('[mm]', rotation=270, labelpad=15)  # Label with [mm] and rotated to match the orientation
+
+        #cbar.set_ticks([])  # Removes the ticks
 
         plt.axis('off')  # Optional: Remove the axis
         plt.show()
@@ -266,7 +278,7 @@ def analyze_uncertainties(folder_path):
         # Adjust x-tick positions and labels
         tick_positions = np.arange(num_categories) * (len(scenes) + space) + width * (len(scenes) - 1) / 2
         ax.set_xticks(tick_positions)
-        ax.set_xticklabels(['Aleatoric 1', 'Epistemic 1', 'Aleatoric 2', 'Epistemic 2'])
+        ax.set_xticklabels(['EMVSNet: Aleatoric', 'EMVSNet: Epistemic', 'Alternative: Aleatoric', 'Alternative: Epistemic'])
         ax.set_ylabel('Mean Uncertainty [mm]')
         ax.set_title('Mean Uncertainties across Different Scenes')
         ax.legend(title='Scene')
@@ -274,7 +286,7 @@ def analyze_uncertainties(folder_path):
         plt.tight_layout()
         plt.show()
 
-    #plot_mean_uncertainties(files)
+    plot_mean_uncertainties(files)
 
     def plot_mean_uncertainties_percentage(files):
         # Initialize a dictionary to store mean uncertainties
@@ -372,13 +384,13 @@ def analyze_uncertainties(folder_path):
 
         # Create custom legend
         handles = [plt.Rectangle((0, 0), 1, 1, color=colors[0]), plt.Rectangle((0, 0), 1, 1, color=colors[1])]
-        labels = ['Method 1', 'Method 2']
+        labels = ['EMVSNet', 'Alternative']
         ax.legend(handles, labels, title='Method')
 
         plt.tight_layout()
         plt.show()
 
-    #plot_mean_uncertainties_percentage(files)
+    plot_mean_uncertainties_percentage(files)
 
     def plot_density_uncertainties(files, use_mask=True):
         # Initialize lists to store uncertainties
@@ -452,7 +464,7 @@ def analyze_uncertainties(folder_path):
         # Plot aleatoric uncertainties
         width_1 = (aleatoric_1_bins[1] - aleatoric_1_bins[0])
         ax1.bar(aleatoric_1_bins[:-1], aleatoric_1_percent, width=width_1, align='edge', alpha=0.5,
-                label='Aleatoric Method 1', color='blue')
+                label='EMVSNet: Aleatoric', color='blue')
         ax1.set_xlabel('Aleatoric Uncertainty [mm]', color='blue')
         ax1.set_ylabel('Density [%]', color='blue')
         ax1.tick_params(axis='x', labelcolor='blue')
@@ -466,7 +478,7 @@ def analyze_uncertainties(folder_path):
 
         width_2 = (aleatoric_2_bins[1] - aleatoric_2_bins[0])
         ax3.bar(aleatoric_2_bins[:-1], aleatoric_2_percent, width=width_2, align='edge', alpha=0.5,
-                label='Aleatoric Method 2', color='green')
+                label='Alternative: Aleatoric', color='green')
         ax3.set_xlabel('Aleatoric Uncertainty [mm]', color='green')
         ax3.tick_params(axis='x', labelcolor='green')
         ax3.legend(loc='upper right')
@@ -486,7 +498,7 @@ def analyze_uncertainties(folder_path):
         # Plot epistemic uncertainties
         width_1 = (epistemic_1_bins[1] - epistemic_1_bins[0])
         ax2.bar(epistemic_1_bins[:-1], epistemic_1_percent, width=width_1, align='edge', alpha=0.5,
-                label='Epistemic Method 1', color='blue')
+                label='EMVSNet: Epistemic', color='blue')
         ax2.set_xlabel('Epistemic Uncertainty [mm]', color='blue')
         ax2.set_ylabel('Density [%]', color='blue')
         ax2.tick_params(axis='x', labelcolor='blue')
@@ -500,7 +512,7 @@ def analyze_uncertainties(folder_path):
 
         width_2 = (epistemic_2_bins[1] - epistemic_2_bins[0])
         ax5.bar(epistemic_2_bins[:-1], epistemic_2_percent, width=width_2, align='edge', alpha=0.5,
-                label='Epistemic Method 2', color='green')
+                label='Alternative: Epistemic', color='green')
         ax5.set_xlabel('Epistemic Uncertainty [mm]', color='green')
         ax5.tick_params(axis='x', labelcolor='green')
         ax5.legend(loc='upper right')
@@ -603,16 +615,16 @@ def analyze_uncertainties(folder_path):
             sorted_indices = np.argsort(x)
             ax.plot(np.array(x)[sorted_indices], regression_line[sorted_indices], color='red', linewidth=2)
 
-        plot_heatmap_with_regression(ax[0, 0], errors_aleatoric_1, aleatoric_1, 'Aleatoric Uncertainty (Method 1)',
+        plot_heatmap_with_regression(ax[0, 0], errors_aleatoric_1, aleatoric_1, 'Aleatoric Uncertainty: EMVSNet',
                                      'Error [cm]',
                                      'Aleatoric Uncertainty [mm]')
-        plot_heatmap_with_regression(ax[0, 1], errors_aleatoric_2, aleatoric_2, 'Aleatoric Uncertainty (Method 2)',
+        plot_heatmap_with_regression(ax[0, 1], errors_aleatoric_2, aleatoric_2, 'Aleatoric Uncertainty: Alternative',
                                      'Error [cm]',
                                      'Aleatoric Uncertainty [mm]')
-        plot_heatmap_with_regression(ax[1, 0], errors_epistemic_1, epistemic_1, 'Epistemic Uncertainty (Method 1)',
+        plot_heatmap_with_regression(ax[1, 0], errors_epistemic_1, epistemic_1, 'Epistemic Uncertainty: EMVSNet',
                                      'Error [cm]',
                                      'Epistemic Uncertainty [mm]')
-        plot_heatmap_with_regression(ax[1, 1], errors_epistemic_2, epistemic_2, 'Epistemic Uncertainty (Method 2)',
+        plot_heatmap_with_regression(ax[1, 1], errors_epistemic_2, epistemic_2, 'Epistemic Uncertainty: Alternative',
                                      'Error [cm]',
                                      'Epistemic Uncertainty [mm]')
 
@@ -767,40 +779,66 @@ def analyze_uncertainties(folder_path):
                 min_uncertainty_90_percent_1 = sorted_uncertainty_1[index_90_percent_1]
                 min_uncertainty_90_percent_2 = sorted_uncertainty_2[index_90_percent_2]
 
-                # Calculate precision and recall up to the 90% uncertainty threshold
+                # Calculate precision, recall, accuracy, and F1 score up to the 90% uncertainty threshold
                 cum_true_positives_1 = np.cumsum(sorted_labels_1)
                 precision_1 = cum_true_positives_1 / np.arange(1, len(sorted_labels_1) + 1)
                 recall_1 = cum_true_positives_1 / cum_true_positives_1[-1]
+                f1_score_1 = 2 * (precision_1 * recall_1) / (precision_1 + recall_1)
+                accuracy_1 = cum_true_positives_1 / len(sorted_labels_1)
 
                 cum_true_positives_2 = np.cumsum(sorted_labels_2)
                 precision_2 = cum_true_positives_2 / np.arange(1, len(sorted_labels_2) + 1)
                 recall_2 = cum_true_positives_2 / cum_true_positives_2[-1]
+                f1_score_2 = 2 * (precision_2 * recall_2) / (precision_2 + recall_2)
+                accuracy_2 = cum_true_positives_2 / len(sorted_labels_2)
 
                 # Create the plot with twin x-axes
                 fig, ax1 = plt.subplots(figsize=(10, 6))
 
                 ax2 = ax1.twiny()
 
-                # Plot for Method 1
-                ax1.plot(sorted_uncertainty_1[:index_90_percent_1 + 1], precision_1[:index_90_percent_1 + 1],
-                         label='Precision Method 1', linestyle='--', color='blue')
-                ax1.plot(sorted_uncertainty_1[:index_90_percent_1 + 1], recall_1[:index_90_percent_1 + 1],
-                         label='Recall Method 1', linestyle='-', color='blue')
-                ax1.set_xlabel('Uncertainty Method 1', color='blue')
+                # Plot for EMVSNet
+                p1, = ax1.plot(sorted_uncertainty_1[:index_90_percent_1 + 1], precision_1[:index_90_percent_1 + 1],
+                               label='EMVSNet Precision', linestyle='--', color='blue')
+                r1, = ax1.plot(sorted_uncertainty_1[:index_90_percent_1 + 1], recall_1[:index_90_percent_1 + 1],
+                               label='EMVSNet Recall', linestyle='-', color='blue')
+                ax1.set_xlabel('Uncertainty EMVSNet', color='blue')
                 ax1.tick_params(axis='x', labelcolor='blue')
 
-                # Plot for Method 2
-                ax2.plot(sorted_uncertainty_2[:index_90_percent_2 + 1], precision_2[:index_90_percent_2 + 1],
-                         label='Precision Method 2', linestyle='--', color='green')
-                ax2.plot(sorted_uncertainty_2[:index_90_percent_2 + 1], recall_2[:index_90_percent_2 + 1],
-                         label='Recall Method 2', linestyle='-', color='green')
-                ax2.set_xlabel('Uncertainty Method 2', color='green')
+                # Plot for Alternative
+                p2, = ax2.plot(sorted_uncertainty_2[:index_90_percent_2 + 1], precision_2[:index_90_percent_2 + 1],
+                               label='Alternative Precision', linestyle='--', color='green')
+                r2, = ax2.plot(sorted_uncertainty_2[:index_90_percent_2 + 1], recall_2[:index_90_percent_2 + 1],
+                               label='Alternative Recall', linestyle='-', color='green')
+                ax2.set_xlabel('Uncertainty Alternative', color='green')
                 ax2.tick_params(axis='x', labelcolor='green')
 
                 # Common settings
                 ax1.set_ylabel('Precision / Recall')
                 ax1.set_title(f'{uncertainty_type} | Scene {scene} | Threshold {threshold}mm')
-                ax1.legend(loc='lower right')
+
+                # Calculate F1 Score and Accuracy for the text
+                f1_1 = np.nanmax(f1_score_1)
+                acc_1 = np.nanmax(accuracy_1)
+
+                f1_2 = np.nanmax(f1_score_2)
+                acc_2 = np.nanmax(accuracy_2)
+
+                # Combine the handles and labels from both axes
+                lines = [p1, r1, p2, r2]
+                labels = [
+                    'EMVSNet Precision',
+                    'EMVSNet Recall',
+                    'Alternative Precision',
+                    'Alternative Recall'
+                ]
+                ax1.legend(lines, labels, loc='lower right')
+
+                # Add F1 Score and Accuracy above the legend, centered, with reduced font size
+                textstr = f'EMVSNet: F1 = {f1_1:.2f}, Acc = {acc_1:.2f}\n' \
+                          f'Alternative: F1 = {f1_2:.2f}, Acc = {acc_2:.2f}'
+                plt.gcf().text(0.5, 0.15, textstr, fontsize=10, ha='center')
+
                 ax1.grid(True)
 
                 # Add threshold text
@@ -1042,14 +1080,26 @@ def analyze_uncertainties(folder_path):
         errors_aleatoric = np.array(errors_aleatoric)
         errors_epistemic = np.array(errors_epistemic)
 
+        # Define a function to filter values between 2nd and 98th percentiles
+        def filter_percentiles(predicted_uncertainty, errors):
+            lower_bound = np.percentile(predicted_uncertainty, 2)
+            upper_bound = np.percentile(predicted_uncertainty, 98)
+
+            mask = (predicted_uncertainty >= lower_bound) & (predicted_uncertainty <= upper_bound)
+            return predicted_uncertainty[mask], errors[mask]
+
         def plot_calibration(predicted_uncertainty, errors, title, color):
+            # Filter data to only include values between 2nd and 98th percentiles
+            filtered_uncertainty, filtered_errors = filter_percentiles(predicted_uncertainty, errors)
+
             # Bin data
-            bin_means, bin_edges, _ = binned_statistic(predicted_uncertainty, errors, statistic='mean', bins=bins)
+            bin_means, bin_edges, _ = binned_statistic(filtered_uncertainty, filtered_errors, statistic='mean',
+                                                       bins=bins)
             bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
 
             plt.plot(bin_centers, bin_means, marker='o', linestyle='-', color=color)
             plt.xlabel('Predicted Uncertainty [mm]')
-            plt.ylabel('Mean Absolute Error [mm]')
+            plt.ylabel('Mean Absolute Error [cm]')
             plt.title(title)
 
         # Plot Calibration for Aleatoric Uncertainty
@@ -1075,6 +1125,8 @@ def analyze_uncertainties(folder_path):
         Parameters:
             files (list): List of file paths.
         """
+
+        files = sorted(files, key=lambda x: int(os.path.basename(x).split('.')[0]))
 
         def read_and_mask(file, uncertainty_type):
             data = read_tensors_from_pt_file(file)
@@ -1169,7 +1221,7 @@ def analyze_uncertainties(folder_path):
                 fig, ax1 = plt.subplots(figsize=(10, 6))
 
                 # Plot ROC for Method 1
-                ax1.plot(fpr_1, tpr_1, label=f'AUC for Method 1: {roc_auc_1:.2f}', linestyle='-',
+                ax1.plot(fpr_1, tpr_1, label=f'AUC for EMVSNet: {roc_auc_1:.2f}', linestyle='-',
                          color='blue')
                 ax1.set_xlabel('False Positive Rate')
                 ax1.set_ylabel('True Positive Rate')
@@ -1178,7 +1230,7 @@ def analyze_uncertainties(folder_path):
                 ax1.grid(True)
 
                 # Plot ROC for Method 2
-                ax1.plot(fpr_2, tpr_2, label=f'AUC for Method 2: {roc_auc_2:.2f}', linestyle='-',
+                ax1.plot(fpr_2, tpr_2, label=f'AUC for Alternative: {roc_auc_2:.2f}', linestyle='-',
                          color='green')
                 ax1.legend(loc='lower right')
 
@@ -1499,7 +1551,7 @@ if __name__ == "__main__":
     #plot_scene_precision_recall(directory_path)
 
 
-    #file_path = "/home/grannemann/Desktop/3_test/1.pt"
+    file_path = "/home/grannemann/Desktop/3_test/3.pt"
     #results = read_tensors_from_pt_file(file_path)
     #print(results.keys())
     #create_filtered_heatmap(results)

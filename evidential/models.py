@@ -476,6 +476,38 @@ def criterion_uncertainty(u, la, alpha, beta, y, mask, weight_reg=0.1):
 
     return loss
 
+
+
+def loss_der(y, y_pred, coeff):
+    gamma, nu, alpha, beta = y[:, 0], y[:, 1], y[:, 2], y[:, 3]
+    error = gamma - y_pred
+    omega = 2.0 * beta * (1.0 + nu)
+
+    return torch.mean(
+        0.5 * torch.log(math.pi / nu)
+        - alpha * torch.log(omega)
+        + (alpha + 0.5) * torch.log(error**2 * nu + omega)
+        + torch.lgamma(alpha)
+        - torch.lgamma(alpha + 0.5)
+        + coeff * torch.abs(error) * (2.0 * nu + alpha)
+    )
+
+
+def loss_emvsnet(u, la, alpha, beta, y, mask, weight_reg=0.1):
+
+    mask = mask.bool()
+
+    error = u - y
+    var = beta / la
+
+    loss = torch.sum((torch.log(var) + (1. + weight_reg * la) * error**2 / var)[mask]) / torch.sum(mask == True)
+    return loss
+
+
+
+
+
+
 def compute_uncertainty(self, u, la, alpha, beta):
     aleatoric = beta / (alpha - 1)
     epistemic = beta / (alpha - 1) / la
@@ -494,7 +526,10 @@ def loss_der(outputs, depth_gt, mask, depth_value, coeff=0.01):
     alpha = torch.unsqueeze(alpha, 0)
     beta = torch.unsqueeze(beta, 0)
 
-    loss = criterion_uncertainty(gamma, nu, alpha, beta, depth_gt, mask, weight_reg=0.1)
+    #loss = criterion_uncertainty(gamma, nu, alpha, beta, depth_gt, mask, weight_reg=0.1)
+    loss = loss_emvsnet(gamma, nu, alpha, beta, depth_gt, mask, weight_reg=0.1)
+
+
 
     #TODO Analyze the difference in performance
     # get aleatoric and epistemic uncertainty

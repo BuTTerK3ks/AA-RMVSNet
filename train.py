@@ -68,6 +68,8 @@ parser.add_argument('--save_freq_checkpoint', type=int, default=1, help='save ch
 parser.add_argument('--seed', type=int, default=1, metavar='S', help='random seed')
 
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+
 # parse arguments and check
 args = parser.parse_args()
 if args.resume:
@@ -110,9 +112,9 @@ MVSDataset = find_dataset_def(args.dataset)
 train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", args.view_num, args.numdepth, args.interval_scale, args.inverse_depth, args.origin_size, -1, args.image_scale) # Training with False, Test with inverse_depth
 #val_dataset = MVSDataset(args.trainpath, args.vallist, "val", 5, args.numdepth, args.interval_scale, args.inverse_depth, args.origin_size, args.light_idx, args.image_scale) #view_num = 5, light_idx = 3
 test_dataset = MVSDataset(args.testpath, args.testlist, "test", args.view_num, args.numdepth, args.interval_scale, args.inverse_depth, args.origin_size, args.light_idx, args.image_scale) # use 3
-TrainImgLoader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_workers=12, drop_last=True)
+TrainImgLoader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_workers=12, drop_last=True, prefetch_factor=5)
 #ValImgLoader = DataLoader(val_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
-TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
+TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False, prefetch_factor=5)
 # Use test set (with gt depths) for validation
 
 print('Model: EMVSNet')
@@ -211,7 +213,7 @@ def train():
     for _ in range(start_epoch):
         lr_scheduler.step()
     for epoch_idx in range(start_epoch, args.epochs):
-        '''
+
         
         print('Epoch {}/{}:'.format(epoch_idx, args.epochs))
 
@@ -221,24 +223,30 @@ def train():
         #TODO Hier wird nur bis x trainiert
         for batch_idx, sample in enumerate(TrainImgLoader):
         #for batch_idx, sample in enumerate(islice(TrainImgLoader, 0, 100, 1)):
-            start_time = time.time()
-            global_step = len(TrainImgLoader) * epoch_idx + batch_idx
-            do_summary = (global_step % args.summary_freq == 0)
-            loss, scalar_outputs, image_outputs, evidential_outputs = train_sample(sample, detailed_summary=do_summary)
+            try:
+                start_time = time.time()
+                global_step = len(TrainImgLoader) * epoch_idx + batch_idx
+                do_summary = (global_step % args.summary_freq == 0)
+                loss, scalar_outputs, image_outputs, evidential_outputs = train_sample(sample, detailed_summary=do_summary)
 
-            for param_group in optimizer.param_groups:
-                lr = param_group['lr']
+                for param_group in optimizer.param_groups:
+                    lr = param_group['lr']
 
-            if do_summary:
-                save_scalars(logger, 'train', scalar_outputs, global_step)
-                logger.add_scalar('train/lr', lr, global_step)
-                save_images(logger, 'train', image_outputs, global_step)
-                save_pytorch(args.logdir, 'train', global_step, image_outputs, evidential_outputs)
-            del scalar_outputs, image_outputs
-            print(
-                'Epoch {}/{}, Iter {}/{}, LR {}, train loss = {:.3f}, time = {:.3f}'.format(epoch_idx, args.epochs, batch_idx,
-                                                                                     len(TrainImgLoader), lr, loss,
-                                                                                     time.time() - start_time))
+                if do_summary:
+                    save_scalars(logger, 'train', scalar_outputs, global_step)
+                    logger.add_scalar('train/lr', lr, global_step)
+                    save_images(logger, 'train', image_outputs, global_step)
+                    save_pytorch(args.logdir, 'train', global_step, image_outputs, evidential_outputs)
+                del scalar_outputs, image_outputs
+                print(
+                    'Epoch {}/{}, Iter {}/{}, LR {}, train loss = {:.3f}, time = {:.3f}'.format(epoch_idx, args.epochs, batch_idx,
+                                                                                         len(TrainImgLoader), lr, loss,
+                                                                                         time.time() - start_time))
+
+            except:
+                print("Problem with: " + str(batch_idx))
+
+
         lr_scheduler.step()
         # checkpoint
         if (epoch_idx + 1) % args.save_freq_checkpoint == 0:
@@ -250,7 +258,7 @@ def train():
 
         avg_test_scalars = DictAverageMeter()
         # TODO Hier wird nur bis x getestet
-        '''
+
         for batch_idx, sample in enumerate(TestImgLoader):
         #for batch_idx, sample in enumerate(islice(TestImgLoader, 0, 100, 1)):
             start_time = time.time()
@@ -261,7 +269,7 @@ def train():
                 save_scalars(logger, 'test', scalar_outputs, global_step)
                 save_images(logger, 'test', image_outputs, global_step)
                 save_pytorch(args.logdir, 'test', global_step, image_outputs, evidential_outputs)
-            #avg_test_scalars.update(scalar_outputs)
+            avg_test_scalars.update(scalar_outputs)
             
             print('Epoch: {}/{}, Iter: {}/{}, Views: {}, test loss = {:.3f}, time = {:3f}, ame = {:3f}, thres2mm = {:3f}, thres4mm = {:3f}, thres8mm = {:3f}, thres16mm = {:3f}, thres32mm = {:3f}'.format(
                                 epoch_idx, args.epochs, batch_idx,
@@ -273,8 +281,8 @@ def train():
 
             del image_outputs
 
-        #save_scalars(logger, 'fulltest', avg_test_scalars.mean(), global_step)
-        #print("avg_test_scalars:", avg_test_scalars.mean())
+        save_scalars(logger, 'fulltest', avg_test_scalars.mean(), global_step)
+        print("avg_test_scalars:", avg_test_scalars.mean())
 
 
 def train_sample(sample, detailed_summary=False):
